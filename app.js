@@ -1,6 +1,7 @@
 require('dotenv').config();
+require('./src/database/rdbms/postgres');
 const express = require('express');
-const cors = require('cors')
+const cors = require('cors');
 const api_route_v1 = require('./src/api/v1/index');
 
 const app = express();
