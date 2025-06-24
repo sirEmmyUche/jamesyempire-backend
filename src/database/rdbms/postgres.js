@@ -1,5 +1,7 @@
 require('dotenv').config();
 const pg = require('pg');
+const fs = require('fs')
+const pfgf = require('../../../')
 
 
 const { Pool,} = pg
@@ -8,9 +10,17 @@ const pool = new Pool({
   user: `${process.env.DB_USERNAME}`,
   password: `${process.env.PASSWORD}`,
   host:`${process.env.DB_HOST}`,
-  port:5432,
+  port:`${process.env.DB_PORT}`,
   database: `${process.env.DATABASE}`,
+  ssl:{
+    rejectUnauthorized:true, //ensure to configure this later for  better security purpose
+    ca:fs.readFileSync('./ca.pem').toString()
+  }
 })
+
+// pool.on('error',()=>{
+//   console.log('unable to connect to DB')
+// })
 
 
 class PG_DB {

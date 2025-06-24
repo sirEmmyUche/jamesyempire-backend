@@ -11,7 +11,7 @@ app.get('/health-check', (req, res) => {
     res.status(200);
     res.send('OK');
 });
-
+app.use("/public", express.static('public'));
 app.use(cors({
     // origin: '*',
     origin:['http://localhost:5173','https://jamesyempire.com'],
