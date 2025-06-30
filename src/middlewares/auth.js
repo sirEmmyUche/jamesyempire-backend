@@ -5,6 +5,33 @@ const DB_Account_Model = require('../models/account');
 const AuthHelperModel = require('../models/auth_helper')
 
 class Auth {
+    // verify token for websocket live chat 
+    static async  verifySocketToken(socket){
+        try{
+            const isToken = socket.handshake.auth.token;
+
+            if (!isToken) throw new Error('Missing token');
+            const [bearer, token] = isToken.split(" ");
+
+            if (bearer !== 'Bearer' || !token) throw new Error('Invalid token format');
+
+            const decoded = jwt.verify(token, process.env.JWT_SECRETE_KEY);
+
+            if(!decoded) throw new Error('Invalid token');
+
+            const account_id = decoded.account_id;
+
+            const userExists = await DB_Account_Model.accountExist({ account_id });
+            
+            if (!userExists) throw new Error('Invalid account credentials');
+
+            const userDetails = await DB_Account_Model.getAccountById({ account_id });
+            return userDetails[0]; // attach to socket
+        }catch(error){
+            throw error
+        }
+    } 
+
      static async verifyToken(req, res, next) {
         try {
             // get authorization header

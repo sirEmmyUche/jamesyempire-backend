@@ -32,6 +32,9 @@ class Utilities {
       return token
     }
 
+    static generateChatRoomId({ property_id, user_id, agent_id }){
+      return `Chat:${property_id}:${user_id}:${agent_id}`;
+    }
 }
 
 module.exports = Utilities;

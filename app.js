@@ -2,7 +2,9 @@ require('dotenv').config();
 require('./src/database/rdbms/postgres');
 const express = require('express');
 const cors = require('cors');
+const http = require('http'); 
 const api_route_v1 = require('./src/api/v1/index');
+const WebSocketService = require('./src/services/websocket')
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,7 +24,14 @@ app.use(cors({
 
 app.use('/v1', api_route_v1);
 
+// start listening to socket on provided port
+const server = http.createServer(app);
+const wsService = WebSocketService.initialize(server);
 
-app.listen(PORT,()=>{
+// app.listen(PORT,()=>{
+//     console.log(`Server is listening on port: ${PORT}`)
+// });
+
+server.listen(PORT,()=>{
     console.log(`Server is listening on port: ${PORT}`)
 });
