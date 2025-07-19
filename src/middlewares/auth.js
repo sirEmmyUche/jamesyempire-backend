@@ -9,9 +9,11 @@ class Auth {
     static async  verifySocketToken(socket){
         try{
             const isToken = socket.handshake.auth.token;
+            // console.log('socket-token:',isToken)
 
             if (!isToken) throw new Error('Missing token');
-            const [bearer, token] = isToken.split(" ");
+
+            const [bearer, token] = isToken.trim().split(/[ ]+/);
 
             if (bearer !== 'Bearer' || !token) throw new Error('Invalid token format');
 

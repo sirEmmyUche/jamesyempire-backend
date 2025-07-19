@@ -10,6 +10,7 @@ class Account {
     static async login(req,res,next){
         try{
             const {password, email} = req.body;
+            const profilePicUrl =  `${process.env.PROFILE_PIC_BASEURL}`
             const invalid_inputs = [];
             if(!email){
                 invalid_inputs.push({
@@ -71,13 +72,15 @@ class Account {
                 });
             }
 
+        
             const user = {
                 token,
                 account_id:result[0].account_id,
                 email: result[0].email,
                 role: result[0].role,
-                firstName: result[0].firstname,
-                lastName:result[0].lastname,
+                firstName: `${result[0]?.firstname.charAt(0).toUpperCase()}${result[0]?.firstname.slice(1)}`,
+                lastName:  `${result[0]?.lastname.charAt(0).toUpperCase()}${result[0]?.lastname.slice(1)}`,//result[0].lastname,
+                profile_pic:result[0]?.profile_img !== ''?`${profilePicUrl}/${result[0].profile_img}`:result[0].profile_img,
                 // phone:result[0].phone
             }
 

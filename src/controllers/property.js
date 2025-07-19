@@ -9,16 +9,50 @@ const path = require('path');
 // const DB_Account_Model = require('../models/account');
 
 class Property{
+    static async getMyProperties(req, res, next){
+        try{
+            const baseUrl = `${process.env.IMGBASEURL}`;
+            const account_id = req.user.account_id;
+             const page = req.query.page || 1
+             const limit = 6
+             const offset = Math.max((page - 1) * limit, 0);
+
+            const result = await DB_Property_Model.getMyProperties({account_id,limit,offset});
+            if(!result){
+                throw new CustomError({
+                    message:'No property found.',
+                    statusCode:404,
+                    details:{},
+                })
+            }
+             const properties = result.result.map((item)=>{
+                return {
+                    ...item,
+                    image:`${baseUrl}/${item.image}`
+                }
+            }) 
+            res.status(200).json({
+                success: true,
+                message:'Property successfully fetched',
+                properties,
+                hasMore: offset + result.length < result.total,
+                total:result.total
+            })
+        }catch(error){
+            next(error)
+        }
+    }
 
     static async  searchProperties(req, res, next) {
         try {
+            // console.log(req.query)
             const baseUrl = `${process.env.IMGBASEURL}`;
             const {title,country,state,address,status,category,available_for,
             min_price,max_price,property_features = {},
             } = req.query;
             const page = req.query.page || 1
             const limit = 6
-            const offset = (page - 1) * limit;
+            const offset = Math.max((page - 1) * limit, 0);
 
             // Ensure property_features is a parsed object
             const parsedFeatures = typeof property_features === 'string'
@@ -51,6 +85,7 @@ class Property{
                 message:'Property successfully fetched',
                 properties,
                 hasMore: offset + result.length < result.total,
+                total:result.total
             })
             // res.json(result);
         } catch (err) {
@@ -146,7 +181,7 @@ class Property{
             const baseUrl = `${process.env.IMGBASEURL}`;
             const page = req.query.page || 1
             const limit = 6;
-            const offset = (page - 1) * limit;
+             const offset = Math.max((page - 1) * limit, 0);
             const {result,total} = await DB_Property_Model.getAllProperty({limit,offset});
             if(!result){
                 throw new CustomError({
@@ -159,7 +194,7 @@ class Property{
             const properties = result.map((item)=>{
                 return {
                     ...item,
-                    image:`${baseUrl}/${item.image}`
+                    image:`${baseUrl}/${item.image}`,
                 }
             }) 
             res.status(200).json({
@@ -167,6 +202,7 @@ class Property{
                 message:'Property successfully fetched',
                 properties,
                 hasMore: offset + result.length < total,
+                total:total
             })
         }catch(error){
             next(error)
@@ -178,6 +214,7 @@ class Property{
             const property_id = req.params.id;
             const invalid_inputs = [];
             const baseUrl = `${process.env.IMGBASEURL}`;
+            const profilePicUrl =  `${process.env.PROFILE_PIC_BASEURL}`
             if(!property_id){
                 invalid_inputs.push({
                     name:'resource_id',
@@ -207,12 +244,16 @@ class Property{
                 })
             }
             const property = resource.map((item)=>{
+                const capitalizeFirstName = `${item?.firstname.charAt(0).toUpperCase()}${item?.firstname.slice(1)}`
+                const capitalizeLastName = `${item?.lastname.charAt(0).toUpperCase()}${item?.lastname.slice(1)}`
                 return {
                     ...item,
+                    agent_profile_img:item.agent_profile_img !== ''?`${profilePicUrl}/${item.agent_profile_img}`:item.agent_profile_img,
                     image:item.image.map((item)=>{
                         return `${baseUrl}/${item}`
                     }),
-                    posted_by:`${item.firstname} ${item.lastname}`
+                    // posted_by:`${item?.firstname} ${item.lastname}`
+                    posted_by:`${capitalizeFirstName} ${capitalizeLastName}`
                 }
             })
             res.status(200).json({
@@ -225,6 +266,7 @@ class Property{
             next(error)
         }
     }
+
     static async updateProperty(req, res, next) {
         try {
             const property_id = req.params.id;

@@ -2,6 +2,37 @@ const PG_DB = require('../database/rdbms/postgres');
 
 
 class DB_Property_Model{
+    static async getMyProperties({account_id, limit, offset}){
+        try{
+            const result = await PG_DB.query(
+            `SELECT property_id, property_features, COALESCE(image[1],'') AS image, title, category, country, state, price, available_for 
+            FROM property 
+            WHERE account_id = $1 
+            ORDER BY id DESC 
+            LIMIT $2 OFFSET $3;`,
+            [account_id, limit, offset]
+            );
+
+            const countResult = await PG_DB.query(
+            `SELECT COUNT(*) AS total 
+            FROM property 
+            WHERE account_id = $1`,
+            [account_id]
+            );
+
+            const total = countResult[0]?.total || 0;
+
+            if (result.length > 0) {
+            return { result, total };
+            }
+
+            return false;
+
+        }catch(error){
+            throw error
+        }
+    }
+
     static async propertyExist({property_id}){
         try{
             const result = await PG_DB.query(
@@ -17,6 +48,7 @@ class DB_Property_Model{
             throw err
         }
     }
+
     static async getAllProperty({limit,ofset}){
         try{
             const result = await PG_DB.query(
@@ -28,6 +60,7 @@ class DB_Property_Model{
                 `SELECT COUNT(*) AS total FROM property`
               );
             const total = countResult[0]?.total || 0;
+            // console.log(total)
 
              if(result.length > 0){
                 return {result,total};
@@ -40,7 +73,8 @@ class DB_Property_Model{
     static async getPropertyById({property_id}){
         try{
             const result = await PG_DB.query(
-                `SELECT p.*, a.firstname, a.lastname
+                `SELECT p.*, 
+                a.firstname, a.lastname, COALESCE(a.profile_img,'') AS agent_profile_img
                 FROM property p
                 LEFT JOIN accounts a
                 ON p.account_id = a.account_id
@@ -207,6 +241,7 @@ class DB_Property_Model{
         const countQuery = `SELECT COUNT(*) AS total FROM property ${whereClause}`;
         const countValues = values.slice(0, idx - 1); // exclude limit/offset
         const countResult = await PG_DB.query(countQuery, countValues);
+        // console.log(countResult[0]?.total)
 
         if (result.length>0){
             return {

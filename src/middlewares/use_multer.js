@@ -4,8 +4,6 @@ const path = require('path');
 const {CustomError} = require('../libraries/custom_error')
 const fs = require('fs');
 
-
-
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     let destinationFolder;

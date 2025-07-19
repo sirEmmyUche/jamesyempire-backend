@@ -64,7 +64,8 @@ const PG_DB = require('../database/rdbms/postgres');
     static async getAccountLoginCredentialsByEmail({email}){
         try{
             const result = await PG_DB.query(
-                `SELECT a.account_id, a.email, a.firstname, a.lastname, a.phone, a.role, lc.hash_email,lc.password
+                `SELECT a.account_id, a.email, a.firstname, a.lastname, a.phone, a.role, COALESCE(a.profile_img,'') AS profile_img,
+                lc.hash_email,lc.password
                 FROM accounts a
                 INNER JOIN login_credentials lc 
                 ON a.account_id = lc.account_id

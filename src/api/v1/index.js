@@ -4,6 +4,7 @@ const handleError = require('../../middlewares/handle_errors');
 const Account = require('../../controllers/account');
 const Property = require('../../controllers/property')
 const Auth = require('../../middlewares/auth');
+const Chats = require('../../controllers/chats')
 const {fileUpload} = require('../../middlewares/use_multer');
 
 
@@ -23,8 +24,21 @@ router.post('/login',
     Account.login
 )
 
-//properties
+//chats
 
+router.get('/chat',
+    Auth.verifyToken,
+    Auth.authentication,
+    Chats.getChatById
+)
+
+router.get('/chat-request',
+    Auth.verifyToken,
+    Auth.authentication,
+    Chats.getMyChatRequest
+)
+
+//properties
 router.post('/upload-property',
     Auth.verifyToken,
     Auth.authentication,
@@ -36,6 +50,13 @@ router.post('/upload-property',
 router.get('/property',
     Property.getAllProperties
 )
+
+router.get('/my-property',
+    Auth.verifyToken,
+    Auth.authentication,
+    Property.getMyProperties
+)
+
 //get a single property by id
 router.get('/property/:id',
     Property.getPropertyById

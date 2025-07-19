@@ -1,7 +1,9 @@
 require('dotenv').config();
 const socketIo = require('socket.io');
 const jwt = require('jsonwebtoken');
-const DB_Account_Model = require('../models/account')
+const DB_Account_Model = require('../models/account');
+const DB_Property_Model = require('../models/property')
+const DB_Chats_Model = require('../models/chats')
 const Auth = require('../middlewares/auth')
 const Utilities = require('../utils/utilities')
 class WebSocketService {
@@ -20,8 +22,9 @@ class WebSocketService {
         // Authentication middleware
         this.io.use(async (socket, next) => {
             try {
-                // const user = await Auth.verifySocketToken(socket);
-                // socket.user = user; // full user object
+                const user = await Auth.verifySocketToken(socket);
+                socket.user = user; // full user object
+                //  console.log('socket-user:', socket.user)
                 next();
             } catch (error) {
                 console.error("Socket i.o authenticating error:",error)
@@ -34,71 +37,135 @@ class WebSocketService {
 
     handleConnection(socket) {
         console.log(`Client connected: ${socket.id}`);
-        socket.join('default-room')
 
-        socket.on('join-room', () => {
-            socket.join('default-room');
-            console.log(`${socket.id} joined default-room`);
-            socket.emit('joined-room', 'default-room');
-        });
+        socket.on('connect', async()=>{
+            return socket.emit('connect', { message: 'Connected to socket' });
+        })
 
-        socket.on('join-chat-room', async ({ property_id, agent_id }) => {
+        socket.on('create-chat-room', async ({ property_id, agent_id }) => {
             try {
                 const user = socket.user;
                 const user_id = user.account_id;
+                // console.log('user-joined-chat:', user)
 
                 // Validate property_id and agent_id
                 if (!property_id || !agent_id) {
+                    // console.log('property_id:',property_id)
                     return socket.emit('error', { message: 'Missing property_id or agent_id' });
                 }
 
-                const chatRoomId = Utilities.generateChatRoomId({ property_id, user_id, agent_id });
+                //check if both property and agent_id exist
+                const account_id = agent_id;
+                if(!await DB_Property_Model.propertyExist({property_id})
+                    && !await DB_Account_Model.accountExist({account_id})
+                ){
+                    return socket.emit('error', { message: 'Property or agent account not found' });
+                }
 
-                // Role-based access control
-                // if (
-                //     user.account_id !== agent_id && // not the agent
-                //     user.role !== 'admin' 
-                //     //&& 
-                //     // user.role !== 'moderator'
-                // ) {
-                //     const isUserAllowed = await DB_Account_Model.isUserInterestedInProperty({ property_id, user_id });
-                //     if (!isUserAllowed) {
-                //         return socket.emit('error', { message: 'You are not permitted to join this chat' });
-                //     }
-                // }
 
-                socket.join(chatRoomId);
-                console.log(`${user.account_id} joined room: ${chatRoomId}`);
-                socket.emit('joined-chat', { room_id: chatRoomId });
+                const chatroom_id = Utilities.generateChatRoomId({ property_id, user_id, agent_id });
+                const status = 'active'
+                const created_at = new Date();
+
+                if(!await DB_Chats_Model.isChatroomExist(chatroom_id)){
+                    const saveChatroomDetails = await DB_Chats_Model.createChatroom({
+                    property_id, user_id, agent_id,status,created_at,chatroom_id
+               })
+
+                    if(!saveChatroomDetails){
+                        return socket.emit('error', { message: 'Unable to create chatroom at the moment.' })
+                    }
+
+                }
+
+                const encryptChatRoomId = await Utilities.encrypt(chatroom_id)
+
+                socket.join(chatroom_id);
+                // console.log(`${user.account_id} joined room: ${chatRoomId}`);
+                const joinedMsgPayLoad = {
+                    message:'You joined the chat',
+                    timestamp: new Date(),
+                    room_id: encryptChatRoomId,
+                }
+
+                // console.log('Emitting you-joined to:', socket.id, joinedMsgPayLoad);
+                 this.io.to(`${chatroom_id}`).emit('you-joined',{joinedMsgPayLoad});
+
             } catch (err) {
-                console.error("Join chat error:", err.message);
+                console.error("create chatroom error:", err.message);
                 socket.emit('error', { message: 'Error joining chat' });
             };
         });
 
         //next event
-        socket.on('chat-message', async ({ room_id, content, message }) => {
+        socket.on('request-to-join-chat-room', async({chatroom_id})=>{
             try{
-                console.log('received message:',message)
-                // const user = socket.user;
+                const user = socket.user;
+                const user_id = user.account_id;
+                if(!chatroom_id){
+                     return socket.emit('error', { message: 'Missing chatroom_id.'})
+                };
+                const decryptChatroomId = await Utilities.decrypt(chatroom_id);
+                const isChatRoomExist = await DB_Chats_Model.isChatroomExist(decryptChatroomId);
+                if(!isChatRoomExist){
+                    return socket.emit('error', { message: 'Chatroom not found.'});
+                }
+                const [chatroomPropertyId, chatroomUserId, chatroomAgentId] = decryptChatroomId.split(':');
 
-                // if (!room_id || !content) {
-                //     return socket.emit('error', { message: 'Missing room_id or message content' });
-                // }
+                if(user.role === 'user' && user_id != chatroomUserId){
+                    return socket.emit('error', { message: 'You are not authorised to join this chat.'});
+                }
 
-                // const messagePayload = {
-                //     sender: {
-                //         id: user.account_id,
-                //         username: user.username,
-                //         role: user.role,
-                //     },
-                //     content,
-                //     timestamp: new Date(),
-                // };
+                if(user.role == 'agent'&& user_id !=chatroomAgentId ){
+                     return socket.emit('error', { message: 'You are not authorised to join this chat.'});
+                }
+                socket.join(decryptChatroomId);
+
+                const userJoinedPayload = {
+                     user_id:user.account_id,
+                    username:`${user.firstname} ${user.lastname}`,
+                    message: `${user.firstname} joined the chat.`,
+                    property_id:chatroomPropertyId,
+                    timestamp: new Date(),
+                }
+
+                this.io.to(`${decryptChatroomId}`).emit('user-joined',{userJoinedPayload})
+            }catch(err){
+                console.error("join chatroom error:", err.message);
+                socket.emit('error', { message: 'Error joining chatroom' });
+            }
+        })
+
+        //next event
+        socket.on('chat-message', async ({messagePayLoad}) => {
+            try{
+                // console.log('received message:',messagePayLoad)
+                const user = socket.user;
+                const getRoom_id = messagePayLoad?.room_id;
+
+                if(!getRoom_id){
+                     return socket.emit('error', { message: 'Missing chatroom Id.'});
+                }
+
+                const room_id = await Utilities.decrypt(getRoom_id)
+
+                const payload = {
+                    sender: {
+                        user_id: user.account_id,
+                        username:`${user.firstname} ${user.lastname}`,
+                        // profile_pic: user.profile_img,
+                        role: user.role,
+                    },
+                    message:messagePayLoad.message,
+                    timestamp: new Date(),
+                };
                 // // (Optional) Save message to DB or Redis
+                 const saveChatToCache = await Utilities.setChatMessage( room_id,payload) 
+
+                //  console.log('websocket-save-to-chat:',saveChatToCache)
 
             // this.io.to(room_id).emit('chat-message', messagePayload);//send message to the appropriate room
-                this.io.to('default-room').emit('chat-message', {message});
+                this.io.to(`${room_id}`).emit('chat-message', {payload});
             }catch(error){
                 console.error('Sending message error:',error)
                 socket.emit('error', { message: 'Error sending message' });

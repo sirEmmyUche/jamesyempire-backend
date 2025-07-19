@@ -1,11 +1,14 @@
 require('dotenv').config();
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken')
+const NodeCache = require('node-cache')
 // const fs = require('fs/promises');
 
 const algorithm = 'aes-256-cbc';
 const secretKey = `${process.env.CRYPTO_SECRETE_KEY}`;
 const iv = crypto.randomBytes(16);
+
+const cache = new NodeCache({})
 
 
 class Utilities {
@@ -33,7 +36,54 @@ class Utilities {
     }
 
     static generateChatRoomId({ property_id, user_id, agent_id }){
-      return `Chat:${property_id}:${user_id}:${agent_id}`;
+      return `${property_id}:${user_id}:${agent_id}`;
+    }
+
+    static async setChatMessage(uniqueKey, newValue){
+      try{
+        const iskeyExist = cache.has(`${uniqueKey}`);
+      if(iskeyExist){
+          // console.log('iskeyExist-setchat-message:',iskeyExist)
+        // Try getting the TTL left
+          const ttlRemaining = cache.getTtl(uniqueKey);
+          const now = Date.now();
+          let remainingSeconds = ttlRemaining ? Math.floor((ttlRemaining - now) / 1000) : 3000//432000;
+
+          let currentValue = cache.get(uniqueKey);
+          // console.log('current-value:',currentValue)
+
+          if (Array.isArray(currentValue)) {
+            currentValue.push(newValue);
+            const updated = cache.set(uniqueKey, currentValue, remainingSeconds);
+             return updated? true : false
+          } else if (currentValue !== undefined) {
+            const updated = cache.set(uniqueKey, [currentValue, newValue], remainingSeconds);
+             return updated? true : false
+          } 
+ 
+        // console.log('cache set message:', getChat)
+      }
+      else {
+           const updated = cache.set(uniqueKey, [newValue], 3000); // 432000 -5days First-time insert
+            return updated? true : false
+        }
+      }catch(error){
+        throw error
+      }
+    }
+
+    static async getCachedChats(uniqueKey){
+      try{
+         const iskeyExist = cache.has(`${uniqueKey}`)
+         if(!iskeyExist) return false;
+
+         const getChatMessages = cache.get(`${uniqueKey}`)
+
+         return getChatMessages;
+         
+      }catch(error){
+        throw error
+      }
     }
 }
 
