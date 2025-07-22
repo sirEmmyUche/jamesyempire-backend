@@ -348,8 +348,8 @@ class Property{
              validUpdates.updated_at = new Date();
 
             // Update DB
-            console.log(validUpdates)
-            // const updated = await DB_Property_Model.updateProperty({property_id, updates: validUpdates,});
+            // console.log(validUpdates)
+            const updated = await DB_Property_Model.updateProperty({property_id, updates: validUpdates,});
 
             res.status(200).json({
             success: true,
