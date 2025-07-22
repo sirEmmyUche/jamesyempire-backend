@@ -275,6 +275,7 @@ class Property{
             // const imageFolderPath = path.join(__dirname, '../../public/uploads/images');
             const invalid_inputs = []
             const update = {...req.body};
+            console.log('update:', update)
 
             if (!property_id) {
                 invalid_inputs.push({
@@ -319,7 +320,7 @@ class Property{
 
             if (invalid_inputs.length > 0 || invalid_fields.length>0) {
             throw new CustomError({
-                message: 'Invalid fields in update payload',
+                message: 'Invalid fields in update form',
                 statusCode: 400,
                 details: {invalid_inputs},
             });
@@ -347,12 +348,13 @@ class Property{
              validUpdates.updated_at = new Date();
 
             // Update DB
-            const updated = await DB_Property_Model.updateProperty({property_id, updates: validUpdates,});
+            console.log(validUpdates)
+            // const updated = await DB_Property_Model.updateProperty({property_id, updates: validUpdates,});
 
             res.status(200).json({
             success: true,
             message: 'Property updated successfully',
-            data: updated,
+            // data: updated,
             });
         } catch (error) {
             const fileData = req.files?.images || []; // Ensure `req.files` is always an array

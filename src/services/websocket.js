@@ -11,7 +11,7 @@ class WebSocketService {
         this.io = socketIo(server, {
             path: '/v1/ws',
             cors: {
-                origin: 'http://localhost:5173',
+                origin: ['http://localhost:5173','https://jamesyempire-frontend.vercel.app'],
                 // origin: ['http://127.0.0.1:5173'],
                 methods: ['GET', 'POST'],
                 allowedHeaders: ['Authorization', 'Content-Type','Access-Control-Allow-Origin'],
