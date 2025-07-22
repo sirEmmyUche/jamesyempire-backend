@@ -26,7 +26,7 @@ class Account {
             }else if(!await DB_Account_Model.emailAddressExist({email})){
                 invalid_inputs.push({
                     name: 'email_address',
-                    message: 'Account not found'
+                    message: 'Invalid login credentials'
                 });
             }
            
