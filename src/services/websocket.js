@@ -5,7 +5,10 @@ const DB_Account_Model = require('../models/account');
 const DB_Property_Model = require('../models/property')
 const DB_Chats_Model = require('../models/chats')
 const Auth = require('../middlewares/auth')
-const Utilities = require('../utils/utilities')
+const Utilities = require('../utils/utilities');
+const Helpers = require('../helpers/helpers');
+
+
 class WebSocketService {
     constructor(server) {
         this.io = socketIo(server, {
@@ -42,6 +45,25 @@ class WebSocketService {
             return socket.emit('connect', { message: 'Connected to socket' });
         })
 
+        socket.on('disconnecting', async ()=>{
+            if(socket.chatroom_id){
+                const user = socket.user;
+                const userFirstName = user.firstname;
+                const encryptChatRoomId = await Utilities.encrypt(socket.chatroom_id)
+
+                const userLeftPayload = {
+                    message:`${userFirstName} left`,
+                    timestamp: new Date(),
+                    room_id: encryptChatRoomId,
+                }
+                 this.io.to(`${socket.chatroom_id}`).emit('user-left',{userLeftPayload});
+            }
+        })
+
+        socket.on('disconnect', async() => {
+            console.log(`Client disconnected: ${socket.id}`);
+        });
+
         socket.on('create-chat-room', async ({ property_id, agent_id }) => {
             try {
                 const user = socket.user;
@@ -51,7 +73,11 @@ class WebSocketService {
                 // Validate property_id and agent_id
                 if (!property_id || !agent_id) {
                     // console.log('property_id:',property_id)
-                    return socket.emit('error', { message: 'Missing property_id or agent_id' });
+                    return socket.emit('error', { message: 'Missing property or agent' });
+                }
+
+                if(user_id == agent_id){
+                     return socket.emit('error', { message: 'You own this property' });
                 }
 
                 //check if both property and agent_id exist
@@ -79,8 +105,9 @@ class WebSocketService {
                 }
 
                 const encryptChatRoomId = await Utilities.encrypt(chatroom_id)
-
+              
                 socket.join(chatroom_id);
+                socket.chatroom_id = chatroom_id;
                 // console.log(`${user.account_id} joined room: ${chatRoomId}`);
                 const joinedMsgPayLoad = {
                     message:'You joined the chat',
@@ -90,6 +117,29 @@ class WebSocketService {
 
                 // console.log('Emitting you-joined to:', socket.id, joinedMsgPayLoad);
                  this.io.to(`${chatroom_id}`).emit('you-joined',{joinedMsgPayLoad});
+                
+                 const getAgentAccountInfo = await DB_Account_Model.getAccountById({account_id});
+                 const agentEmail =  getAgentAccountInfo[0]?.email
+                 const agentName = `${getAgentAccountInfo[0]?.firstname.charAt(0).toUpperCase()}${getAgentAccountInfo[0]?.firstname.slice(1)}`;
+                 const notifyAgent = await Helpers.sendEmailNotficationForChatRequest(agentEmail, agentName);
+            
+                 const waitingForAgent = {
+                    message:'Waiting for agent...',
+                    room_id: encryptChatRoomId,
+                }
+                this.io.to(`${chatroom_id}`).emit('waiting-for-agent',{waitingForAgent});
+
+                 if(!notifyAgent){
+                     socket.emit('error', { message: 'Unable to notify agent.'});
+
+                     let agentNotifyStatusPayload = {
+                        room_id: encryptChatRoomId,
+                        message:'Unable to notify agent. Please try again later.',
+                        timestamp: new Date(),
+                     }
+
+                     this.io.to(`${chatroom_id}`).emit('agent-notification-status',{agentNotifyStatusPayload});
+                 }
 
             } catch (err) {
                 console.error("create chatroom error:", err.message);
@@ -120,8 +170,10 @@ class WebSocketService {
                      return socket.emit('error', { message: 'You are not authorised to join this chat.'});
                 }
                 socket.join(decryptChatroomId);
+                socket.chatroom_id = decryptChatroomId;
 
                 const userJoinedPayload = {
+                      room_id: chatroom_id,
                      user_id:user.account_id,
                     username:`${user.firstname} ${user.lastname}`,
                     message: `${user.firstname} joined the chat.`,
@@ -173,19 +225,15 @@ class WebSocketService {
         });
 
         // next event
-        socket.on('leave-chat', (room_id) => {
-            try{
-                if (!room_id) return;
+        // socket.on('leave-chat', (room_id) => {
+        //     try{
+        //         if (!room_id) return;
 
-                socket.leave(room_id);
-            }catch(error){
-                console.error('Leave-chat-error:',error)
-            }
-        })
-
-         socket.on('disconnect', () => {
-            console.log(`Client disconnected: ${socket.id}`);
-        });
+        //         socket.leave(room_id);
+        //     }catch(error){
+        //         console.error('Leave-chat-error:',error)
+        //     }
+        // })
 
     }
 

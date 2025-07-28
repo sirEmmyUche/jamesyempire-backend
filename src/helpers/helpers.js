@@ -1,7 +1,40 @@
+require('dotenv').config();
 const fsp = require('fs/promises');
 const path = require('path');
+const nodemailer = require("nodemailer");
+
+const nodemailerTransporter = nodemailer.createTransport({
+    host: 'mail.privateemail.com',
+    port: 587,
+    secure: false, // Use `true` for port 465, `false` for all other ports
+    auth: {
+      user: `${process.env.OFFICIAL_MAIL}`,//"maddison53@ethereal.email",
+      pass: `${process.env.OFFICIAL_MAIL_PASSWORD}`  //"jn7jnAPss4f63QBp6D",
+    },
+    tls: {
+        rejectUnauthorized: false, // Ignore SSL certificate validation
+    },
+  }); 
 
 class Helpers {
+  
+   static async sendEmailNotficationForChatRequest(recipientMail, recipientName,){
+    try{
+       const mailOption = {
+      from:`${process.env.OFFICIAL_MAIL}`,
+      to: recipientMail,
+      subject:`Chat Request`,
+      html:`<h3>Hello ${recipientName},</h3> 
+      <p>A client wants to chat with you concerning a property you posted at jamseyempire.</p>
+      <p>Regards</p> `,
+  }
+    const result = await nodemailerTransporter.sendMail(mailOption);
+    return result
+    }catch(error){
+      console.error('error sending email notif for chat request:', error)
+      return false
+    }
+  }
     /**
  * Filters and validates update fields against existing DB fields.
  * @param {Object} existingData - The data object fetched from DB.
@@ -9,38 +42,7 @@ class Helpers {
  * @param {Object} options - Extra options (like parseJSON for JSON strings).
  * @returns {Object} - { validUpdates, invalid_fields }
  */
-// static filterValidUpdates(existingData, inputData, options = {}) {
-//     const validUpdates = {};
-//     const invalid_fields = [];
 
-//     const existingKeys = Object.keys(existingData);
-//     //   console.log(existingKeys)
-
-//     for (const key of Object.keys(inputData)) {
-//         if (existingKeys.includes(key)) {
-//         // Special handling for JSONB field if needed
-//         if (key === 'property_features' && options.parseJSON) {
-//             try {
-//             const parsed = typeof inputData[key] === 'string'
-//                 ? JSON.parse(inputData[key])
-//                 : inputData[key];
-
-//             validUpdates[key] = {
-//                 ...existingData[key],
-//                 ...parsed,
-//             };
-//             } catch (e) {
-//             invalid_fields.push(key);
-//             }
-//         } else {
-//             validUpdates[key] = inputData[key];
-//         }
-//         } else {
-//         invalid_fields.push(key);
-//         }
-//     }
-//     return { validUpdates, invalid_fields };
-// }
 
 static filterValidUpdates(existingData, inputData, options = {}) {
   const validUpdates = {};
