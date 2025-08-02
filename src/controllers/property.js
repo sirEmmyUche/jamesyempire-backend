@@ -99,7 +99,7 @@ class Property{
                 available_for, category, price, property_features, status
             } = req.body;
 
-            const fileData = req.files?.images || [];
+            const fileData = req.files?.image || [];
             const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
 
             const invalid_inputs = [];
@@ -162,7 +162,7 @@ class Property{
 
         } catch (error) {
             // Cleanup uploaded files if there's an error
-            const fileData = req.files?.images || []; // Ensure `req.files` is always an array
+            const fileData = req.files?.image || []; // Ensure `req.files` is always an array
             const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
             if(files){
                  try {
@@ -270,12 +270,12 @@ class Property{
     static async updateProperty(req, res, next) {
         try {
             const property_id = req.params.id;
-            const fileData = req.files?.images || []; // Ensure `req.files` is always an array
+            const fileData = req.files?.image || []; // Ensure `req.files` is always an array
             const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
             // const imageFolderPath = path.join(__dirname, '../../public/uploads/images');
             const invalid_inputs = []
             const update = {...req.body};
-            console.log('update:', update)
+            // console.log('update:', update)
 
             if (!property_id) {
                 invalid_inputs.push({
@@ -318,6 +318,9 @@ class Property{
             parseJSON: true,
             });
 
+            // console.log('validUpdates', validUpdates)
+            // console.log('invalid_fields', invalid_fields)
+
             if (invalid_inputs.length > 0 || invalid_fields.length>0) {
             throw new CustomError({
                 message: 'Invalid fields in update form',
@@ -328,16 +331,17 @@ class Property{
 
             // Handle image logic
             if(files){
+                // console.log(files)
                 if(property.image.length == 10){
                     throw new CustomError({
-                        message: 'Image limit reached, you cant upload more images',
+                        message: `Image limit reached. You can't upload more than 10 images per property`,
                         statusCode: 400,
                         details: {},
                     })
                 }else if((property.image.length + files.length)>10){
                     // console.log((property.image.length + files.length))
                     throw new CustomError({
-                        message: 'Image limit reached, you cant upload more images',
+                        message: `Image limit reached. You can't upload more than 10 images per property`,
                         statusCode: 400,
                         details: {},
                     })
@@ -357,7 +361,7 @@ class Property{
             // data: updated,
             });
         } catch (error) {
-            const fileData = req.files?.images || []; // Ensure `req.files` is always an array
+            const fileData = req.files?.image || []; // Ensure `req.files` is always an array
             const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
             if(files){
                  try {
@@ -375,9 +379,10 @@ class Property{
 
      static async deleteImageFromPropertyImage(req,res,next){
         try{
-            const imageUrl = req.body.imageUrl
+            const imageUrl = req.query.imageUrl
             const property_id = req.params.id;
             const invalid_inputs = [];
+            console.log(imageUrl)
 
             //Not required here because it's handled in the authorization middleware
             if(!property_id){
@@ -411,11 +416,23 @@ class Property{
                     details:{invalid_inputs},
                 })
             }
+
+            const result = await DB_Property_Model.getPropertyById({ property_id });
+            // console.log('result:',result)
+            const property = Array.isArray(result) ? result[0] : result;
+
+            if(property.image.length == 1){
+                    throw new CustomError({
+                        message: `Property is expected to have at least one image`,
+                        statusCode: 400,
+                        details: {},
+                    })
+                }
             
             const getFilename = (url)=>{
                 return url.split('/').pop();
             }
-            const filename =getFilename(imageUrl)
+            const filename = getFilename(imageUrl)
             const imgPath = path.join(__dirname, '../../public/uploads/images', filename);
 
             const imageRemoved = await DB_Property_Model.removeImageFromAPropertyImages({property_id,filename});
@@ -442,6 +459,7 @@ class Property{
      static async deletePropertyById(req,res,next){
         try{
             const property_id = req.params.id;
+            console.log(property_id)
             const invalid_inputs = [];
 
             if(!property_id){

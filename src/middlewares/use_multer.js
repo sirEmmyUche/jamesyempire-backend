@@ -11,7 +11,7 @@ const storage = multer.diskStorage({
       case 'profile_pics':
         destinationFolder = 'public/assets/profile_pics';
         break;
-      case 'images':
+      case 'image':
         destinationFolder = 'public/uploads/images';
         break;
       default:
@@ -45,7 +45,7 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   if (
-    file.fieldname === "images" &&
+    file.fieldname === "image" &&
     !file.mimetype.startsWith("image/")
   ) {
     return cb(
@@ -71,7 +71,7 @@ const upload = multer({
 });
 
 const fileUpload = upload.fields([
-  {name:"images", maxCount: 10},
+  {name:"image", maxCount: 10},
   {name:"profile_pics", maxCount: 1}]);
  
 module.exports = {fileUpload,}

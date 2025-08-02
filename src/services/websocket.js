@@ -14,7 +14,10 @@ class WebSocketService {
         this.io = socketIo(server, {
             path: '/v1/ws',
             cors: {
-                origin: ['http://localhost:5173','https://jamesyempire-frontend.vercel.app'],
+                origin: ['http://localhost:5173',
+                    'https://jamesyempire-frontend.vercel.app',
+                    'https://jamesyempire.com'
+                ],
                 // origin: ['http://127.0.0.1:5173'],
                 methods: ['GET', 'POST'],
                 allowedHeaders: ['Authorization', 'Content-Type','Access-Control-Allow-Origin'],
@@ -39,7 +42,7 @@ class WebSocketService {
     }
 
     handleConnection(socket) {
-        console.log(`Client connected: ${socket.id}`);
+        // console.log(`Client connected: ${socket.id}`);
 
         socket.on('connect', async()=>{
             return socket.emit('connect', { message: 'Connected to socket' });
@@ -60,9 +63,9 @@ class WebSocketService {
             }
         })
 
-        socket.on('disconnect', async() => {
-            console.log(`Client disconnected: ${socket.id}`);
-        });
+        // socket.on('disconnect', async() => {
+        //     console.log(`Client disconnected: ${socket.id}`);
+        // });
 
         socket.on('create-chat-room', async ({ property_id, agent_id }) => {
             try {

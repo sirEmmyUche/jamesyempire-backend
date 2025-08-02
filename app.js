@@ -16,7 +16,10 @@ app.get('/health-check', (req, res) => {
 app.use("/public", express.static('public'));
 app.use(cors({
     // origin: '*',
-    origin:['http://localhost:5173','https://jamesyempire.com','https://jamesyempire-frontend.vercel.app'],
+    origin:['http://localhost:5173',
+        'https://jamesyempire.com',
+        'https://jamesyempire-frontend.vercel.app',
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization','Access-Control-Allow-Origin'],
     credentials: true

@@ -54,6 +54,7 @@ class Auth {
             const [token_type, token] = auth_header.trim().split(/[ ]+/);
 
             // check if token type is bearer token
+            // console.log('token',token)
             if (token_type !== 'Bearer') {
                 // throw error
                 throw new CustomError({
@@ -164,7 +165,7 @@ class Auth {
 
             if (!allowedRoles.includes(userRole)) {
                 throw new CustomError({
-                message: 'Forbidden, role not permitted',
+                message: 'Forbidden, role not permitted.',
                 statusCode: 403,
                 details: {},
                 });
@@ -175,14 +176,14 @@ class Auth {
 
             if(!matchedAction) {
                 throw new CustomError({
-                message: 'You are not permitted to perform this action',
+                message: 'You are not permitted to perform this action.',
                 statusCode: 403,
                 details: {},
                 });
             }
 
             // Ownership check only if the action ends in ':own'
-            if (matchedAction.endsWith(':own') && matchedAction !== 'create:own') {
+            if(matchedAction.endsWith(':own') && matchedAction !== 'create:own'){
                 const resourceId = req.params.id || req.body.id;
                 if (!resourceId) {
                 throw new CustomError({
@@ -195,14 +196,14 @@ class Auth {
                 const ownerId = await AuthHelperModel.getResourceOwner(resourceType, resourceId);
                 if(!ownerId){
                 throw new CustomError({
-                    message: 'Resource or property not found',
+                    message: 'Resource or property not found.',
                     statusCode: 404,
                     details: {},
                 });
                 }
                 if(ownerId !== user.account_id){
                 throw new CustomError({
-                    message: 'You cannot perform this operation',
+                    message: 'You cannot perform this operation.',
                     statusCode: 403,
                     details: {},
                 });

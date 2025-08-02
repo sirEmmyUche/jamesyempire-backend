@@ -51,6 +51,7 @@ static filterValidUpdates(existingData, inputData, options = {}) {
   const existingKeys = Object.keys(existingData);
 
   for (const key of Object.keys(inputData)) {
+    // console.log(key)
     if (existingKeys.includes(key)) {
       if (key === "property_features" && options.parseJSON) {
         try {
@@ -79,7 +80,8 @@ static filterValidUpdates(existingData, inputData, options = {}) {
       } else {
         validUpdates[key] = inputData[key];
       }
-    } else {
+    } 
+    else {
       invalid_fields.push({ name: key, message: "Field not allowed" });
     }
   }
