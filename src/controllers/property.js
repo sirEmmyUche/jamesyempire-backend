@@ -20,7 +20,7 @@ class Property{
             const result = await DB_Property_Model.getMyProperties({account_id,limit,offset});
             if(!result){
                 throw new CustomError({
-                    message:'No property found.',
+                    message:'You have not posted any properties.',
                     statusCode:404,
                     details:{},
                 })
@@ -382,7 +382,7 @@ class Property{
             const imageUrl = req.query.imageUrl
             const property_id = req.params.id;
             const invalid_inputs = [];
-            console.log(imageUrl)
+            // console.log(imageUrl)
 
             //Not required here because it's handled in the authorization middleware
             if(!property_id){
