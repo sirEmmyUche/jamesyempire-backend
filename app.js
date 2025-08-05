@@ -17,7 +17,7 @@ app.use("/public", express.static('public'));
 app.use(cors({
     // origin: '*',
     origin:['http://localhost:5173',
-        'https://jamesyempire.com',
+        'https://www.jamesyempire.com',
         'https://jamesyempire-frontend.vercel.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

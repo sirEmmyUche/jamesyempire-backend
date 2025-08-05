@@ -16,7 +16,7 @@ class WebSocketService {
             cors: {
                 origin: ['http://localhost:5173',
                     'https://jamesyempire-frontend.vercel.app',
-                    'https://jamesyempire.com'
+                    'https://www.jamesyempire.com'
                 ],
                 // origin: ['http://127.0.0.1:5173'],
                 methods: ['GET', 'POST'],
