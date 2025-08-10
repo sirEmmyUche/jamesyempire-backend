@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken')
 const NodeCache = require('node-cache')
 // const fs = require('fs/promises');
+const {isValidPhoneNumber} = require('libphonenumber-js')
 
 const algorithm = 'aes-256-cbc';
 const secretKey = `${process.env.CRYPTO_SECRETE_KEY}`;
@@ -37,6 +38,17 @@ class Utilities {
 
     static generateChatRoomId({ property_id, user_id, agent_id }){
       return `${property_id}:${user_id}:${agent_id}`;
+    }
+
+
+    static capitalizeName(text){
+      return `${text.charAt(0).toUpperCase()}${text.slice(1)}`
+    }
+
+    static validatePhoneNumber(phone){
+      const isValid = isValidPhoneNumber(phone)
+      if (isValid) return true;
+      return false;
     }
 
     static async setChatMessage(uniqueKey, newValue){

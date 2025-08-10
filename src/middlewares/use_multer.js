@@ -4,7 +4,8 @@ const path = require('path');
 const {CustomError} = require('../libraries/custom_error')
 const fs = require('fs');
 
-const storage = multer.diskStorage({
+const storage = multer.memoryStorage({ //memorySorage was used because the file is been uploaded to cloud
+  // if you want to persisnt the file on server disk then use diskStorage
   destination: (req, file, cb) => {
     let destinationFolder;
     switch (file.fieldname) {

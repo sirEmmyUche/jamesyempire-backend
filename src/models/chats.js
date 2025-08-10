@@ -37,19 +37,31 @@ class DB_Chats_Model{
     static async getMyChatRequest({account_id}){
         try{
              const result = await PG_DB.query(
-                `SELECT cr.*, 
-                u.firstname AS user_firstname, u.profile_img AS user_profile_img,
-                a.firstname AS agent_firstname, a.profile_img AS agent_profile_img,
-                p.title, COALESCE(p.image[1],'') AS image, p.price
-                FROM chat_room cr
-                JOIN 
-                property p ON cr.property_id = p.property_id
-                JOIN
-                accounts u ON cr.user_id = u.account_id
-                JOIN
-                accounts a ON cr.agent_id = a.account_id
-                WHERE 
-                cr.agent_id = $1;`,[account_id]);
+                 `
+        SELECT 
+          cr.*, 
+          u.firstname AS user_firstname, 
+          COALESCE(u.profile_img, '') AS user_profile_img,
+          u.profile_img_metadata AS user_profile_img_metadata,
+          a.firstname AS agent_firstname, 
+          COALESCE(a.profile_img, '') AS agent_profile_img,
+          a.profile_img_metadata AS agent_profile_img_metadata,
+          p.title, 
+          p.price,
+          COALESCE(
+            (SELECT pi.metadata->>'secure_url'
+             FROM property_images pi
+             WHERE pi.property_id = p.property_id
+             ORDER BY pi.display_order ASC
+             LIMIT 1),
+            ''
+          ) AS image
+        FROM chat_room cr
+        JOIN property p ON cr.property_id = p.property_id
+        JOIN accounts u ON cr.user_id = u.account_id
+        JOIN accounts a ON cr.agent_id = a.account_id
+        WHERE cr.agent_id = $1;
+        `,[account_id]);
 
             if(result.length > 0){
             return result;
@@ -62,19 +74,30 @@ class DB_Chats_Model{
     static async getChatById(chatroomId){
         try{
             const result = await PG_DB.query(
-                `SELECT cr.*, 
-                u.firstname AS user_firstname, u.profile_img AS user_profile_img,
-                a.firstname AS agent_firstname, a.profile_img AS agent_profile_img,
-                p.title, COALESCE(p.image[1],'') AS image, p.price
-                FROM chat_room cr
-                JOIN 
-                property p ON cr.property_id = p.property_id
-                JOIN
-                accounts u ON cr.user_id = u.account_id
-                JOIN
-                accounts a ON cr.agent_id = a.account_id
-                WHERE 
-                cr.chatroom_id = $1;`,[chatroomId]);
+        `SELECT 
+          cr.*, 
+          u.firstname AS user_firstname, 
+          COALESCE(u.profile_img, '') AS user_profile_img,
+          u.profile_img_metadata AS user_profile_img_metadata,
+          a.firstname AS agent_firstname, 
+          COALESCE(a.profile_img, '') AS agent_profile_img,
+          a.profile_img_metadata AS agent_profile_img_metadata,
+          p.title, 
+          p.price,
+          COALESCE(
+            (SELECT pi.metadata->>'secure_url'
+             FROM property_images pi
+             WHERE pi.property_id = p.property_id
+             ORDER BY pi.display_order ASC
+             LIMIT 1),
+            ''
+          ) AS image
+        FROM chat_room cr
+        JOIN property p ON cr.property_id = p.property_id
+        JOIN accounts u ON cr.user_id = u.account_id
+        JOIN accounts a ON cr.agent_id = a.account_id
+        WHERE cr.chat_room_id = $1;
+        `,[chatroomId]);
 
             if(result.length > 0){
             return result;

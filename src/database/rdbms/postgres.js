@@ -1,8 +1,6 @@
 require('dotenv').config();
 const pg = require('pg');
 const fs = require('fs')
-const pfgf = require('../../../')
-
 
 const { Pool,} = pg
  
@@ -36,26 +34,54 @@ class PG_DB {
 
   // Transaction method using a single client
   static async transaction(...callbacks) {
-    const client = await pool.connect(); // Get a client from the pool
+    const client = await pool.connect();
     try {
-      await client.query('BEGIN');
-      let previousResults;
+        await client.query('BEGIN');
+        let previousResults;
 
-      for (const cb of callbacks) {
-        const { query, values } = cb(previousResults);
-        const result = values ? await client.query(query, values) : await client.query(query);
-        previousResults = result.rows;
-      }
+        for (const cb of callbacks) {
+          const step = cb(previousResults);
+          if (!step || !step.query) {
+            // Skip if no valid query returned
+            continue;
+          }
+          const result = step.values
+            ? await client.query(step.query, step.values)
+            : await client.query(step.query);
+          previousResults = result.rows;
+        }
 
-      await client.query('COMMIT');
-      return previousResults;
+        await client.query('COMMIT');
+        return previousResults;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
-      client.release(); // Important: release client back to the pool
+      client.release();
     }
-  }
+}
+
+  // static async transaction(...callbacks) {
+  //   const client = await pool.connect(); // Get a client from the pool
+  //   try {
+  //     await client.query('BEGIN');
+  //     let previousResults;
+
+  //     for (const cb of callbacks) {
+  //       const { query, values } = cb(previousResults);
+  //       const result = values ? await client.query(query, values) : await client.query(query);
+  //       previousResults = result.rows;
+  //     }
+
+  //     await client.query('COMMIT');
+  //     return previousResults;
+  //   } catch (err) {
+  //     await client.query('ROLLBACK');
+  //     throw err;
+  //   } finally {
+  //     client.release(); // Important: release client back to the pool
+  //   }
+  // }
 }
 
 module.exports = PG_DB;

@@ -24,6 +24,19 @@ router.post('/login',
     Account.login
 )
 
+router.post('/update-account',
+    Auth.verifyToken,
+    Auth.authentication,
+    fileUpload,
+    Account.updateAccount,
+)
+
+router.post('/account/change-password',
+    Auth.verifyToken,
+    Auth.authentication,
+    Account.changePassword
+)
+
 //chats
 
 router.get('/chat',

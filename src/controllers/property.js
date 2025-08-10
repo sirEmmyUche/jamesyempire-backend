@@ -1,3 +1,4 @@
+require('dotenv').config();
 const {CustomError} = require('../libraries/custom_error');
 const { v4: uuidv4 } = require('uuid'); 
 const Utilities = require('../utils/utilities');
@@ -5,530 +6,819 @@ const fsp = require('fs/promises');
 const fs = require('fs')
 const DB_Property_Model = require('../models/property')
 const Helpers = require('../helpers/helpers')
+const CloudinaryHelper = require('../helpers/cloudinary')
 const path = require('path');
 // const DB_Account_Model = require('../models/account');
 
 class Property{
-    static async getMyProperties(req, res, next){
-        try{
-            const baseUrl = `${process.env.IMGBASEURL}`;
-            const account_id = req.user.account_id;
-             const page = req.query.page || 1
-             const limit = 6
-             const offset = Math.max((page - 1) * limit, 0);
+    static async getMyProperties(req, res, next) {
+    try {
+      const account_id = req.user.account_id;
+      const page = parseInt(req.query.page) || 1;
+      const limit = 6;
+      const offset = Math.max((page - 1) * limit, 0);
 
-            const result = await DB_Property_Model.getMyProperties({account_id,limit,offset});
-            if(!result){
-                throw new CustomError({
-                    message:'You have not posted any properties.',
-                    statusCode:404,
-                    details:{},
-                })
-            }
-             const properties = result.result.map((item)=>{
-                return {
-                    ...item,
-                    image:`${baseUrl}/${item.image}`
-                }
-            }) 
-            res.status(200).json({
-                success: true,
-                message:'Property successfully fetched',
-                properties,
-                hasMore: offset + result.length < result.total,
-                total:result.total
-            })
-        }catch(error){
-            next(error)
-        }
+      const { result, total } = await DB_Property_Model.getMyProperties({ account_id, limit, offset });
+
+      if (result.length === 0) {
+        throw new CustomError({
+          message: 'You have not posted any properties.',
+          statusCode: 404,
+          details: {},
+        });
+      }
+
+      // Map results to ensure image is an object
+      const properties = result.map((item) => ({
+        ...item,
+        image: item.image || {}, // Ensure image is always an object
+      }));
+
+      res.status(200).json({
+        success: true,
+        message: 'Properties successfully fetched',
+        properties,
+        hasMore: offset + result.length < total,
+        total,
+      });
+    } catch (error) {
+      next(error);
     }
+  }
 
-    static async  searchProperties(req, res, next) {
-        try {
-            // console.log(req.query)
-            const baseUrl = `${process.env.IMGBASEURL}`;
-            const {title,country,state,address,status,category,available_for,
-            min_price,max_price,property_features = {},
-            } = req.query;
-            const page = req.query.page || 1
-            const limit = 6
-            const offset = Math.max((page - 1) * limit, 0);
+    static async searchProperties(req, res, next) {
+    try {
+      const {
+        title,
+        country,
+        state,
+        address,
+        status,
+        category,
+        available_for,
+        min_price,
+        max_price,
+        property_features = {},
+      } = req.query;
+      const page = parseInt(req.query.page) || 1;
+      const limit = 6;
+      const offset = Math.max((page - 1) * limit, 0);
 
-            // Ensure property_features is a parsed object
-            const parsedFeatures = typeof property_features === 'string'
-            ? JSON.parse(property_features)
-            : property_features;
+      // Parse property_features if string
+      const parsedFeatures = typeof property_features === 'string'
+        ? JSON.parse(property_features)
+        : property_features;
 
-            const filters = {title,country,state,address,status,category,available_for,
-            min_price,max_price,
-            property_features: parsedFeatures,
-            limit: parseInt(limit),
-            offset: parseInt(offset),
-            };
-            const result = await DB_Property_Model.searchProperties(filters);
-            if(!result){
-                throw new CustomError({
-                    message:'Could not find any property that matches your request.',
-                    statusCode:404,
-                    details:{},
-                })
-            }
-            // console.log(result)
-            const properties = result.result.map((item)=>{
-                return {
-                    ...item,
-                    image:`${baseUrl}/${item.image}`
-                }
-            }) 
-            res.status(200).json({
-                success: true,
-                message:'Property successfully fetched',
-                properties,
-                hasMore: offset + result.length < result.total,
-                total:result.total
-            })
-            // res.json(result);
-        } catch (err) {
-            next(err);
-        }
-        }
+      const filters = {
+        title,
+        country,
+        state,
+        address,
+        status,
+        category,
+        available_for,
+        min_price: min_price ? parseFloat(min_price) : undefined,
+        max_price: max_price ? parseFloat(max_price) : undefined,
+        property_features: parsedFeatures,
+        limit,
+        offset,
+      };
+
+      const { result, total } = await DB_Property_Model.searchProperties(filters);
+
+      if (result.length === 0) {
+        throw new CustomError({
+          message: 'Could not find any property that matches your request.',
+          statusCode: 404,
+          details: {},
+        });
+      }
+
+      // Map results to ensure image is an object
+      const properties = result.map((item) => ({
+        ...item,
+        image: item.image || {}, // Ensure image is always an object
+      }));
+
+      res.status(200).json({
+        success: true,
+        message: 'Properties successfully fetched',
+        properties,
+        hasMore: offset + result.length < total,
+        total,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
     static async uploadNewProperty(req, res, next) {
+        let cloudinaryResults = []; // Track Cloudinary uploads for cleanup
         try {
-            const {
-                title, address, country, state, description,
-                available_for, category, price, property_features, status
-            } = req.body;
+        const {
+            title,
+            address,
+            country,
+            state,
+            description,
+            available_for,
+            category,
+            price,
+            property_features,
+            status,
+        } = req.body;
 
-            const fileData = req.files?.image || [];
-            const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
+        const fileData = req.files?.image || [];
+        const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
+        const invalid_inputs = [];
+        const property_id = uuidv4();
+        const account_id = req.user.account_id;
+        const folder = `${process.env.CLOUDINARY_PROPERTY_IMAGE_FOLDER}`;
 
-            const invalid_inputs = [];
-            const property_id = uuidv4();
-            const account_id = req.user.account_id;
-  
-            if (!files) {
-                invalid_inputs.push({ name: 'files', message: 'Image is needed' });
-            }
-
-            // Validate fields
-            const validateText = (field, value, maxLength = 300) => {
-                if (!value || value.trim() === '') {
-                    invalid_inputs.push({ name: field, message: 'required' });
-                } else if (/[\x00-\x1F\x7F]/.test(value)) {
-                    invalid_inputs.push({ name: field, message: 'Contains unsupported characters' });
-                } else if(!new RegExp(`^.{1,${maxLength}}$`).test(value)) {// (value.length >maxLength)
-                    invalid_inputs.push({ name: field, message: `Exceeded ${maxLength} maximum characters` });
-                }
-            };
-
-            validateText('title', title);
-            validateText('address', address);
-            validateText('description', description);
-
-            if (!country || !state) {
-                invalid_inputs.push({ name: 'country_state', message: 'Country and State are required' });
-            }
-
-            ['available_for', 'category', 'price', 'property_features', 'status'].forEach(field => {
-                if (!req.body[field]) {
-                    invalid_inputs.push({ name: field, message: 'required' });
-                }
-            });
-
-            if (invalid_inputs.length > 0) {
-                throw new CustomError({
-                    message: 'Invalid or missing inputs',
-                    statusCode: 400,
-                    details: { fields: invalid_inputs }
-                });
-            }
-
-            const image = files.map(file => file.filename);
-
-            const resource = {
-                title, address, country, state, description,
-                available_for, category, price, status,
-                image, account_id, property_id,
-                property_features, 
-                created_at: new Date()
-            };
-
-            await DB_Property_Model.uploadProperty(resource);
-
-            res.status(201).json({
-                 success: true,
-                 message: "Property uploaded successfully",
-                resource });
-
-        } catch (error) {
-            // Cleanup uploaded files if there's an error
-            const fileData = req.files?.image || []; // Ensure `req.files` is always an array
-            const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
-            if(files){
-                 try {
-                    await Promise.all(files.map(async(file)=>{
-                        await fsp.unlink(file.path);
-                    }))
-                 } catch (err) {
-                        console.error('Failed to delete file:', err.message);
-                    }
-                }
-            next(error);
+        // Validate images
+        if (!files) {
+            invalid_inputs.push({ name: 'image', message: 'At least one image is required' });
         }
-    }
-    static async getAllProperties(req,res,next){
-        try{
-            const baseUrl = `${process.env.IMGBASEURL}`;
-            const page = req.query.page || 1
-            const limit = 6;
-             const offset = Math.max((page - 1) * limit, 0);
-            const {result,total} = await DB_Property_Model.getAllProperty({limit,offset});
-            if(!result){
-                throw new CustomError({
-                    name:'properties',
-                    message:'Could not find any property at the moment.',
-                    statuCode:404,
-                    details:{}
-                })
+
+        // Validate fields
+        const validateText = (field, value, maxLength = 300) => {
+            if (!value || value.trim() === '') {
+            invalid_inputs.push({ name: field, message: 'Required' });
+            } else if (/[\x00-\x1F\x7F]/.test(value)) {
+            invalid_inputs.push({ name: field, message: 'Contains unsupported characters' });
+            } else if (!new RegExp(`^.{1,${maxLength}}$`).test(value)) {
+            invalid_inputs.push({ name: field, message: `Exceeded ${maxLength} maximum characters` });
             }
-            const properties = result.map((item)=>{
-                return {
-                    ...item,
-                    image:`${baseUrl}/${item.image}`,
-                }
-            }) 
-            res.status(200).json({
-                success: true,
-                message:'Property successfully fetched',
-                properties,
-                hasMore: offset + result.length < total,
-                total:total
-            })
-        }catch(error){
-            next(error)
+        };
+
+        validateText('title', title);
+        validateText('address', address);
+        validateText('description', description);
+
+        if (!country || !state) {
+            invalid_inputs.push({ name: 'country_state', message: 'Country and State are required' });
         }
-    }
 
-    static async getPropertyById(req,res,next){
-        try{
-            const property_id = req.params.id;
-            const invalid_inputs = [];
-            const baseUrl = `${process.env.IMGBASEURL}`;
-            const profilePicUrl =  `${process.env.PROFILE_PIC_BASEURL}`
-            if(!property_id){
-                invalid_inputs.push({
-                    name:'resource_id',
-                    message:'missing property id'
-                })
+        ['available_for', 'category', 'price', 'property_features', 'status'].forEach((field) => {
+            if (!req.body[field]) {
+            invalid_inputs.push({ name: field, message: 'Required' });
             }
-            const propertyExist = await DB_Property_Model.propertyExist({property_id});
-            if(!propertyExist){
-                 invalid_inputs.push({
-                    name:'Property',
-                    message:'Property not found'
-                })
-            }
-            if (invalid_inputs.length > 0) {
-                throw new CustomError({
-                    message: 'Invalid or missing inputs',
-                    statusCode: 400,
-                    details: { fields: invalid_inputs }
-                });
-            }
-            const resource = await DB_Property_Model.getPropertyById({property_id})
-            if(!resource){
-                throw new CustomError({
-                    mesaage:'Property not found',
-                    statusCode: 404,
-                    details: {}
-                })
-            }
-            const property = resource.map((item)=>{
-                const capitalizeFirstName = `${item?.firstname.charAt(0).toUpperCase()}${item?.firstname.slice(1)}`
-                const capitalizeLastName = `${item?.lastname.charAt(0).toUpperCase()}${item?.lastname.slice(1)}`
-                return {
-                    ...item,
-                    agent_profile_img:item.agent_profile_img !== ''?`${profilePicUrl}/${item.agent_profile_img}`:item.agent_profile_img,
-                    image:item.image.map((item)=>{
-                        return `${baseUrl}/${item}`
-                    }),
-                    // posted_by:`${item?.firstname} ${item.lastname}`
-                    posted_by:`${capitalizeFirstName} ${capitalizeLastName}`
-                }
-            })
-            res.status(200).json({
-                success: true,
-                message:'Property successfully fetched',
-                property:property[0]
-            })
-           
-        }catch(error){
-            next(error)
-        }
-    }
+        });
 
-    static async updateProperty(req, res, next) {
-        try {
-            const property_id = req.params.id;
-            const fileData = req.files?.image || []; // Ensure `req.files` is always an array
-            const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
-            // const imageFolderPath = path.join(__dirname, '../../public/uploads/images');
-            const invalid_inputs = []
-            const update = {...req.body};
-            // console.log('update:', update)
-
-            if (!property_id) {
-                invalid_inputs.push({
-                    name:'Property_id',
-                    messaqge:'missing property_id'
-                })
-            }
-            const validateText = (field, value, maxLength = 300) => {
-                if (!value || value.trim() === '') {
-                    invalid_inputs.push({ name: field, message: 'required' });
-                } else if (/[\x00-\x1F\x7F]/.test(value)) {
-                    invalid_inputs.push({ name: field, message: 'Contains unsupported characters' });
-                } else if(!new RegExp(`^.{1,${maxLength}}$`).test(value)) {// (value.length >maxLength)
-                    invalid_inputs.push({ name: field, message: `Exceeded ${maxLength} maximum characters` });
-                }
-            };
-            if(update.title){
-                validateText('title', update.title);
-            }else if(update.address){
-                validateText('address', update.address);
-            }else if(update.description){
-                validateText('description', update.description);
-            }
-            
-            const result = await DB_Property_Model.getPropertyById({ property_id });
-            // console.log('result:',result)
-            const property = Array.isArray(result) ? result[0] : result;
-            // const property = await DB_Property_Model.getPropertyById({ property_id });
-            if (!property) {
+        if (invalid_inputs.length > 0) {
             throw new CustomError({
-                message: 'Property not found',
-                statusCode: 404,
-                details: {},
+            message: 'Invalid or missing inputs',
+            statusCode: 400,
+            details: { fields: invalid_inputs },
             });
-            }
+        }
 
-            // Run validation and sanitization
-            // console.log(update)
-            const { validUpdates, invalid_fields } = Helpers.filterValidUpdates(property, update, {
-            parseJSON: true,
-            });
+        // Upload images to Cloudinary
+        if (files) {
+            cloudinaryResults = await Promise.all(
+            files.map((file) => CloudinaryHelper.uploadToCloudinary(file, folder))
+            );
+            // console.log(cloudinaryResults)
+        }
 
-            // console.log('validUpdates', validUpdates)
-            // console.log('invalid_fields', invalid_fields)
+        // Prepare property resource
+        const resource = {
+            title,
+            address,
+            country,
+            state,
+            description,
+            available_for,
+            category,
+            price: parseFloat(price),
+            property_features: typeof property_features === 'string' ? JSON.parse(property_features || '{}') : property_features || {},
+            status,
+            account_id,
+            property_id,
+            created_at: new Date(),
+        };
 
-            if (invalid_inputs.length > 0 || invalid_fields.length>0) {
-            throw new CustomError({
-                message: 'Invalid fields in update form',
-                statusCode: 400,
-                details: {invalid_inputs},
-            });
-            }
+        // Insert property and images transactionally
+        const { property, images } = await DB_Property_Model.uploadPropertyWithImages(resource, cloudinaryResults);
 
-            // Handle image logic
-            if(files){
-                // console.log(files)
-                if(property.image.length == 10){
-                    throw new CustomError({
-                        message: `Image limit reached. You can't upload more than 10 images per property`,
-                        statusCode: 400,
-                        details: {},
-                    })
-                }else if((property.image.length + files.length)>10){
-                    // console.log((property.image.length + files.length))
-                    throw new CustomError({
-                        message: `Image limit reached. You can't upload more than 10 images per property`,
-                        statusCode: 400,
-                        details: {},
-                    })
-                }
-                const image = files.map(file => file.filename);
-                validUpdates.image = image;
-            }
-             validUpdates.updated_at = new Date();
-
-            // Update DB
-            // console.log(validUpdates)
-            const updated = await DB_Property_Model.updateProperty({property_id, updates: validUpdates,});
-
-            res.status(200).json({
+        // Prepare response
+        res.status(201).json({
             success: true,
-            message: 'Property updated successfully',
-            // data: updated,
-            });
+            message: 'Property uploaded successfully',
+            resource: {
+            ...property,
+            images,
+            },
+        });
         } catch (error) {
-            const fileData = req.files?.image || []; // Ensure `req.files` is always an array
-            const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
-            if(files){
-                 try {
-                    await Promise.all(files.map(async(file)=>{
-                        await fsp.unlink(file.path);
-                    }))
-                 } catch (err) {
-                        console.error('Failed to delete file:', err.message);
-                    }
-                }
+        // Cleanup Cloudinary images if transaction fails
+        if (cloudinaryResults.length > 0) {
+            const publicIds = cloudinaryResults.map((result) => result.public_id);
+            try {
+            await CloudinaryHelper.deleteMultipleFromCloudinary(publicIds);
+            console.log('Cleaned up Cloudinary images:', publicIds);
+            } catch (cleanupError) {
+            console.error('Failed to clean up Cloudinary images:', cleanupError.message);
+            }
+        }
 
-            next(error);
-        }  
+        // Enhance error message
+        const errorMessage = error.message.includes('Failed to save property and images')
+            ? 'Failed to save property and images to database'
+            : error.message;
+
+        const customError =
+            error instanceof CustomError
+            ? error
+            : new CustomError({
+                message: errorMessage,
+                statusCode: error.statusCode || 500,
+                details: error.details || { error: error.message },
+                });
+
+        next(customError);
+        }
+  }
+
+   static async getAllProperties(req, res, next) {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = 6;
+      const offset = Math.max((page - 1) * limit, 0);
+
+      const { result, total } = await DB_Property_Model.getAllProperty({ limit, offset });
+
+      if (result.length === 0) {
+        throw new CustomError({
+          name: 'properties',
+          message: 'Could not find any property at the moment.',
+          statusCode: 404,
+          details: {},
+        });
+      }
+
+      // Map results to ensure image is an object (or empty object)
+      const properties = result.map((item) => ({
+        ...item,
+        image: item.image || {}, // Ensure image is always an object
+      }));
+
+      res.status(200).json({
+        success: true,
+        message: 'Properties successfully fetched',
+        properties,
+        hasMore: offset + result.length < total,
+        total,
+      });
+    } catch (error) {
+      next(error);
     }
+  }
 
-     static async deleteImageFromPropertyImage(req,res,next){
-        try{
-            const imageUrl = req.query.imageUrl
-            const property_id = req.params.id;
-            const invalid_inputs = [];
-            // console.log(imageUrl)
+    static async getPropertyById(req, res, next) {
+    try {
+      const property_id = req.params.id;
+      const invalid_inputs = [];
 
-            //Not required here because it's handled in the authorization middleware
-            if(!property_id){
-                invalid_inputs.push({
-                    name:'property id',
-                    message:'missing property id'
-                })
-            }
+      if (!property_id) {
+        invalid_inputs.push({
+          name: 'resource_id',
+          message: 'Missing property id',
+        });
+      }
 
-            if(!imageUrl){
-                invalid_inputs.push({
-                    name:'property id',
-                    message:'missing property id'
-                })
-            }
+      const propertyExist = await DB_Property_Model.propertyExist({ property_id });
+      if (!propertyExist) {
+        invalid_inputs.push({
+          name: 'Property',
+          message: 'Property not found',
+        });
+      }
 
-            const propertyExist = await DB_Property_Model.propertyExist({property_id});
+      if (invalid_inputs.length > 0) {
+        throw new CustomError({
+          message: 'Invalid or missing inputs',
+          statusCode: 400,
+          details: { fields: invalid_inputs },
+        });
+      }
 
-             if(!propertyExist){
-                invalid_inputs.push({
-                    name:'property',
-                    message:'Property not found'
-                })
-            }
+      const property = await DB_Property_Model.getPropertyById({ property_id });
 
+      if (!property) {
+        throw new CustomError({
+          message: 'Property not found',
+          statusCode: 404,
+          details: { propertyId: property_id },
+        });
+      }
 
-            if(invalid_inputs.length>0){
-                throw new CustomError({
-                    message: 'Invalid inputs',
-                    statusCode: 400,
-                    details:{invalid_inputs},
-                })
-            }
+      // Capitalize agent names
+      const capitalizeFirstName = property.firstname?Utilities.capitalizeName(property.firstname):'';
+      const capitalizeLastName = property.lastname?Utilities.capitalizeName(property.lastname): '';
 
-            const result = await DB_Property_Model.getPropertyById({ property_id });
-            // console.log('result:',result)
-            const property = Array.isArray(result) ? result[0] : result;
+      // Prepare response
+      const formattedProperty = {
+        ...property,
+        images: property.images || [], // Ensure images is an array
+        agent_profile_img: property.agent_profile_img || '', // Already a secure_url or empty
+        posted_by: capitalizeFirstName && capitalizeLastName
+          ? `${capitalizeFirstName} ${capitalizeLastName}`
+          : '',
+      };
 
-            if(property.image.length == 1){
-                    throw new CustomError({
-                        message: `Property is expected to have at least one image`,
-                        statusCode: 400,
-                        details: {},
-                    })
-                }
+      res.status(200).json({
+        success: true,
+        message: 'Property successfully fetched',
+        property: formattedProperty,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+    // static async updateProperty(req, res, next) {
+    //     try {
+    //         const property_id = req.params.id;
+    //         const fileData = req.files?.image || []; // Ensure `req.files` is always an array
+    //         const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
+    //         // const imageFolderPath = path.join(__dirname, '../../public/uploads/images');
+    //         const invalid_inputs = []
+    //         const update = {...req.body};
+    //         // console.log('update:', update)
+
+    //         if (!property_id) {
+    //             invalid_inputs.push({
+    //                 name:'Property_id',
+    //                 messaqge:'missing property_id'
+    //             })
+    //         }
+    //         const validateText = (field, value, maxLength = 300) => {
+    //             if (!value || value.trim() === '') {
+    //                 invalid_inputs.push({ name: field, message: 'required' });
+    //             } else if (/[\x00-\x1F\x7F]/.test(value)) {
+    //                 invalid_inputs.push({ name: field, message: 'Contains unsupported characters' });
+    //             } else if(!new RegExp(`^.{1,${maxLength}}$`).test(value)) {// (value.length >maxLength)
+    //                 invalid_inputs.push({ name: field, message: `Exceeded ${maxLength} maximum characters` });
+    //             }
+    //         };
+    //         if(update.title){
+    //             validateText('title', update.title);
+    //         }else if(update.address){
+    //             validateText('address', update.address);
+    //         }else if(update.description){
+    //             validateText('description', update.description);
+    //         }
             
-            const getFilename = (url)=>{
-                return url.split('/').pop();
-            }
-            const filename = getFilename(imageUrl)
-            const imgPath = path.join(__dirname, '../../public/uploads/images', filename);
+    //         const result = await DB_Property_Model.getPropertyById({ property_id });
+    //         // console.log('result:',result)
+    //         const property = Array.isArray(result) ? result[0] : result;
+    //         // const property = await DB_Property_Model.getPropertyById({ property_id });
+    //         if (!property) {
+    //         throw new CustomError({
+    //             message: 'Property not found',
+    //             statusCode: 404,
+    //             details: {},
+    //         });
+    //         }
 
-            const imageRemoved = await DB_Property_Model.removeImageFromAPropertyImages({property_id,filename});
+    //         // Run validation and sanitization
+    //         // console.log(update)
+    //         const { validUpdates, invalid_fields } = Helpers.filterValidUpdates(property, update, {
+    //         parseJSON: true,
+    //         });
 
-            if(!imageRemoved){
-                throw new CustomError({
-                    message:'Unable to delete image',
-                    statusCode: 400,
-                    details:{},
-                })
-            }
+    //         // console.log('validUpdates', validUpdates)
+    //         // console.log('invalid_fields', invalid_fields)
 
-            await fsp.unlink(imgPath);
+    //         if (invalid_inputs.length > 0 || invalid_fields.length>0) {
+    //         throw new CustomError({
+    //             message: 'Invalid fields in update form',
+    //             statusCode: 400,
+    //             details: {invalid_inputs},
+    //         });
+    //         }
 
-            res.status(200).json({
-                success:true,
-                message:'Imaged successfully deleted'
-            });
-        }catch(error){
-            next(error)
+    //         // Handle image logic
+    //         if(files){
+    //             // console.log(files)
+    //             if(property.image.length == 10){
+    //                 throw new CustomError({
+    //                     message: `Image limit reached. You can't upload more than 10 images per property`,
+    //                     statusCode: 400,
+    //                     details: {},
+    //                 })
+    //             }else if((property.image.length + files.length)>10){
+    //                 // console.log((property.image.length + files.length))
+    //                 throw new CustomError({
+    //                     message: `Image limit reached. You can't upload more than 10 images per property`,
+    //                     statusCode: 400,
+    //                     details: {},
+    //                 })
+    //             }
+    //             const image = files.map(file => file.filename);
+    //             validUpdates.image = image;
+    //         }
+    //          validUpdates.updated_at = new Date();
+
+    //         // Update DB
+    //         // console.log(validUpdates)
+    //         const updated = await DB_Property_Model.updateProperty({property_id, updates: validUpdates,});
+
+    //         res.status(200).json({
+    //         success: true,
+    //         message: 'Property updated successfully',
+    //         // data: updated,
+    //         });
+    //     } catch (error) {
+    //         const fileData = req.files?.image || []; // Ensure `req.files` is always an array
+    //         const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
+    //         if(files){
+    //              try {
+    //                 await Promise.all(files.map(async(file)=>{
+    //                     await fsp.unlink(file.path);
+    //                 }))
+    //              } catch (err) {
+    //                     console.error('Failed to delete file:', err.message);
+    //                 }
+    //             }
+
+    //         next(error);
+    //     }  
+    // }
+
+     static async updateProperty(req, res, next) {
+         let uploadedPublicIds = [];
+        const folder = `${process.env.CLOUDINARY_PROPERTY_IMAGE_FOLDER}`;
+    try {
+      const property_id = req.params.id;
+      const fileData = req.files.image || []; // Expect Cloudinary results from multer
+      const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
+      const invalid_inputs = [];
+
+      const update = { ...req.body };
+    //   console.log(update)
+      // Track uploaded images for cleanup
+
+      // Validate inputs
+      if (!property_id) {
+        invalid_inputs.push({
+          name: 'property_id',
+          message: 'Missing property id',
+        });
+      }
+
+      const validateText = (field, value, maxLength = 300) => {
+        if (!value || value.trim() === '') {
+          invalid_inputs.push({ name: field, message: 'Required' });
+        } else if (/[\x00-\x1F\x7F]/.test(value)) {
+          invalid_inputs.push({ name: field, message: 'Contains unsupported characters' });
+        } else if (!new RegExp(`^.{1,${maxLength}}$`).test(value)) {
+          invalid_inputs.push({ name: field, message: `Exceeded ${maxLength} maximum characters` });
         }
-     }
+      };
 
-     static async deletePropertyById(req,res,next){
-        try{
-            const property_id = req.params.id;
-            console.log(property_id)
-            const invalid_inputs = [];
+      if (update.title) validateText('title', update.title);
+      if (update.address) validateText('address', update.address);
+      if (update.description) validateText('description', update.description);
 
-            if(!property_id){
-                invalid_inputs.push({
-                    name:'property id',
-                    message:'missing property id'
-                })
+      // Check if property exists
+      const property = await DB_Property_Model.getPropertyById({ property_id });
+      if (!property) {
+        throw new CustomError({
+          message: 'Property not found',
+          statusCode: 404,
+          details: {},
+        });
+      }
+
+      // Filter valid updates
+      if(update.image) delete update.image // this removes the image as it's no longer on the databae property table
+      const { validUpdates, invalid_fields } = Helpers.filterValidUpdates(property, update, {
+        parseJSON: true,
+      });
+
+      if (invalid_inputs.length > 0 || invalid_fields.length > 0) {
+        throw new CustomError({
+          message: 'Invalid fields in update form',
+          statusCode: 400,
+          details: { invalid_inputs, invalid_fields },
+        });
+      }
+
+      // Handle image uploads
+      let cloudinaryResults = [];
+      if (files) {
+        const imageCount = await DB_Property_Model.getImageCount({ property_id });
+        if (imageCount >= 10) {
+          throw new CustomError({
+            message: "Image limit reached. You can't upload more than 10 images per property",
+            statusCode: 400,
+            details: {},
+          });
+        }
+        if (imageCount + files.length > 10) {
+          throw new CustomError({
+            message: `Image limit reached. You can only upload ${
+              10 - imageCount
+            } more image(s)`,
+            statusCode: 400,
+            details: {},
+          });
+        }
+
+        
+        const uploadToCloudinary = await Promise.all(
+            files.map((file) => CloudinaryHelper.uploadToCloudinary(file, folder))
+            );
+
+        cloudinaryResults = uploadToCloudinary?.map((file, index) => ({
+          public_id: file.public_id,
+          secure_url: file.secure_url,
+          format: file.format,
+          version: file.version,
+        }));
+
+        uploadedPublicIds = cloudinaryResults.map((result) => result.public_id);
+
+      }
+
+      // Update property and images
+      validUpdates.updated_at = new Date();
+      
+      const updated = await DB_Property_Model.updateProperty({
+        property_id,
+        updates: validUpdates,
+        cloudinaryResults,
+      });
+
+    // console.log('this is to be added to db',validUpdates)
+
+      res.status(200).json({
+        success: true,
+        message: 'Property updated successfully',
+      });
+
+    } catch (error) {
+      // Clean up uploaded Cloudinary images on failure
+        if (uploadedPublicIds.length > 0) {
+            try {
+            await CloudinaryHelper.deleteMultipleFromCloudinary(uploadedPublicIds);
+            } catch (err) {
+            console.error('Failed to clean up Cloudinary images:', err.message);
             }
-            //this is just a double layer check, the authorization already handles this.
-            const propertyExist = DB_Property_Model.propertyExist({property_id});
+        }
+        next(error);
 
-            if(!propertyExist){
-                invalid_inputs.push({
-                    name:'property',
-                    message:'property not found'
-                })
-            }
+    }
+  }
 
-            const property = await DB_Property_Model.getPropertyById({ property_id });
 
-            if(!property){
-                 invalid_inputs.push({
-                    name:'property',
-                    message:'property not found'
-                })
-            }
+    static async deleteImageFromPropertyImage(req, res, next) {
+    try {
+      const { imageUrl } = req.query; // Cloudinary public_id
+      const property_id = req.params.id;
+      const invalid_inputs = [];
+      let deletedFromCloudinary = false;
+    //   let deletedFromDB = false;
 
-             if(invalid_inputs.length>0){
-                throw new CustomError({
-                    message: 'Invalid inputs',
-                    statusCode: 400,
-                    details:{invalid_inputs},
-                })
-            }
+      // Validate inputs
+      if (!property_id) {
+        invalid_inputs.push({
+          name: 'property_id',
+          message: 'Missing property id',
+        });
+      }
+      if (!imageUrl) {
+        invalid_inputs.push({
+          name: 'imageUrl',
+          message: 'Missing image public_id',
+        });
+      }
 
-            const propertyImage = property[0].image
-            const directoryPath = '../../public/uploads/images';
-            const addFilePathToPropertyImage = propertyImage.map((item)=>{
-                const imgPath = path.join(__dirname,directoryPath,item)
-                return imgPath
-            })
+      // Check if property exists
+      const propertyExist = await DB_Property_Model.propertyExist({ property_id });
+      if (!propertyExist) {
+        invalid_inputs.push({
+          name: 'property',
+          message: 'Property not found',
+        });
+      }
 
-            const deleteProperty = await DB_Property_Model.DeletePropertyById({property_id});
+      if (invalid_inputs.length > 0) {
+        throw new CustomError({
+          message: 'Missing Image details',
+          statusCode: 400,
+          details: { invalid_inputs },
+        });
+      }
 
-            if(!deleteProperty){
-                throw new CustomError({
-                    message:'Failed to delete property',
-                     statusCode: 400,
-                    details:{},
-                })
-            }
+       // Check remaining images
+      const imageCount = await DB_Property_Model.getImageCount({ property_id });
+      if (imageCount <= 1) {
+         throw new CustomError({
+          message: 'Property is expected to have one image',
+          statusCode: 400,
+          details: {},
+        });
+      }
+        //check if image exist in database and cloud
+       const existsInDB = await DB_Property_Model.checkImageExistsInDB(property_id, imageUrl);
+       const existsInCloudinary = await CloudinaryHelper.checkFileExists(imageUrl);
 
-            try{
-                await Promise.all(addFilePathToPropertyImage.map(async(file)=>{
-                        await fsp.unlink(file);
-                    }))
-            }catch(error){
-                 console.warn('Failed to delete file:', error.message);
-            }
+       if (!existsInCloudinary && !existsInDB) {
+         throw new CustomError({
+          message: 'Image does not exist or may have been moved to another location',
+          statusCode: 400,
+          details: {},
+        });
+      }
+
+      // Delete from Cloud if it exists
+      if (existsInCloudinary) {
+        const cloudinaryResult = await CloudinaryHelper.deleteFromCloudinary(imageUrl);
+        //  console.log('delete from cloudinary',cloudinaryResult)
+        if(cloudinaryResult.result !== 'ok') {
+          throw new CustomError({
+          message: 'Image not found',
+          statusCode: 400,
+          details: {},
+        });
+        }
+        deletedFromCloudinary = true;
+      }
+
+      // Delete image from database
+      if(deletedFromCloudinary){
+        const result = await DB_Property_Model.removeImageFromAPropertyImages({
+        property_id,
+        public_id: imageUrl,
+      });
+
+      if(!result){
+        throw new CustomError({
+          message: 'failed to delete image from storage',
+          statusCode: 400,
+          details: {},
+        });
+      }
+        res.status(200).json({
+            success: true,
+            message: `Image successfully deleted`,
+        });
+      }
+      
+    } catch (error) {
+    next(error)
+    }
+  }
+
+   static async deletePropertyById(req, res, next) {
+    try {
+      const property_id = req.params.id;
+      const invalid_inputs = [];
+      let isDeleted = false
+
+      // Validate inputs
+      if (!property_id) {
+        invalid_inputs.push({
+          name: 'property_id',
+          message: 'Missing property id',
+        });
+      }
+
+      // Check if property exists
+      const propertyExist = await DB_Property_Model.propertyExist({ property_id });
+      if (!propertyExist) {
+        invalid_inputs.push({
+          name: 'property',
+          message: 'Property not found',
+        });
+      }
+
+      if (invalid_inputs.length > 0) {
+        throw new CustomError({
+          message: 'Invalid inputs',
+          statusCode: 400,
+          details: { invalid_inputs },
+        });
+      }
+
+       const property = await DB_Property_Model.getPropertyById({ property_id });
+
+       const publicIds = property.images?.map((publicId) => publicId.public_id);
+
+       
+
+       //check if publicIds exist in cloud
+       const existInCloud = await CloudinaryHelper.checkMultipleFilesExist(publicIds);
+    //    console.log(existInCloud)
+
+       const publicIdsTobeDeleted = existInCloud
+       .filter((publicId)=>publicId.exists)
+       .map((publicId)=>publicId.public_id);
+
+     
+
+       if(publicIdsTobeDeleted.length > 0){
+        const deleteImageFromCloud = await CloudinaryHelper.deleteMultipleFromCloudinary(publicIdsTobeDeleted);
+        // console.log('testing')
+       }
+
+
+      // Delete property and associated images from database
+      const deleteProperty = await DB_Property_Model.DeletePropertyById({ property_id });
+
+      if (!deleteProperty) {
+        throw new CustomError({
+          message: 'Failed to delete property',
+          statusCode: 400,
+          details: {},
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Property successfully deleted',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+// static async deletePropertyById(req,res,next){
+//         try{
+//             const property_id = req.params.id;
+//             console.log(property_id)
+//             const invalid_inputs = [];
+
+//             if(!property_id){
+//                 invalid_inputs.push({
+//                     name:'property id',
+//                     message:'missing property id'
+//                 })
+//             }
+//             //this is just a double layer check, the authorization already handles this.
+//             const propertyExist = DB_Property_Model.propertyExist({property_id});
+
+//             if(!propertyExist){
+//                 invalid_inputs.push({
+//                     name:'property',
+//                     message:'property not found'
+//                 })
+//             }
+
+//             const property = await DB_Property_Model.getPropertyById({ property_id });
+
+//             if(!property){
+//                  invalid_inputs.push({
+//                     name:'property',
+//                     message:'property not found'
+//                 })
+//             }
+
+//              if(invalid_inputs.length>0){
+//                 throw new CustomError({
+//                     message: 'Invalid inputs',
+//                     statusCode: 400,
+//                     details:{invalid_inputs},
+//                 })
+//             }
+
+//             const propertyImage = property[0].image
+//             const directoryPath = '../../public/uploads/images';
+//             const addFilePathToPropertyImage = propertyImage.map((item)=>{
+//                 const imgPath = path.join(__dirname,directoryPath,item)
+//                 return imgPath
+//             })
+
+//             const deleteProperty = await DB_Property_Model.DeletePropertyById({property_id});
+
+//             if(!deleteProperty){
+//                 throw new CustomError({
+//                     message:'Failed to delete property',
+//                      statusCode: 400,
+//                     details:{},
+//                 })
+//             }
+
+//             try{
+//                 await Promise.all(addFilePathToPropertyImage.map(async(file)=>{
+//                         await fsp.unlink(file);
+//                     }))
+//             }catch(error){
+//                  console.warn('Failed to delete file:', error.message);
+//             }
             
-            res.status(200).json({
-                success:true,
-                message:'Property successfully deleted',
-            });
+//             res.status(200).json({
+//                 success:true,
+//                 message:'Property successfully deleted',
+//             });
            
-        }catch(error){
-            next(error)
-        }
-     }
+//         }catch(error){
+//             next(error)
+//         }
+//      }
 
 }
 
