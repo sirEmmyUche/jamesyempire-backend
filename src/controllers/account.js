@@ -201,6 +201,65 @@ class Account {
         }
   }
 
+  static async removeProfilePics(req, res, next){
+    try{
+      const { imageUrl } = req.query; // Cloudinary public_id
+      const account_id = req.user.account_id;
+      const invalid_inputs = [];
+      let deletedFromCloudinary = false;
+
+      // Validate inputs
+      if (!imageUrl) {
+        invalid_inputs.push({
+          name: 'imageUrl',
+          message: 'Missing image public_id',
+        });
+      }
+
+        const existsInDB = await DB_Account_Model.checkImageExistsInDB(account_id, imageUrl);
+       const existsInCloudinary = await CloudinaryHelper.checkFileExists(imageUrl);
+
+       if (!existsInCloudinary && !existsInDB ) {
+         throw new CustomError({
+          message: 'Image does not exist or may have been moved to another location',
+          statusCode: 404,
+          details: {},
+        });
+      }
+      if (existsInCloudinary) {
+        const cloudinaryResult = await CloudinaryHelper.deleteFromCloudinary(imageUrl);
+        //  console.log('delete from cloudinary',cloudinaryResult)
+        if(cloudinaryResult.result !== 'ok') {
+          throw new CustomError({
+          message: 'Image not found',
+          statusCode: 400,
+          details: {},
+        });
+        }
+        deletedFromCloudinary = true;
+      }
+
+      // Delete image from database
+      if(deletedFromCloudinary){
+        const result = await DB_Account_Model.removeProfilePics(account_id);
+
+      if(!result){
+        throw new CustomError({
+          message: 'failed to delete image',
+          statusCode: 400,
+          details: {},
+        });
+      }
+        res.status(200).json({
+            success: true,
+            message: `Image successfully deleted`,
+        });
+      }
+    }catch(error){
+        next(error)
+    }
+  }
+
   static async login(req,res,next){
         try{
             const {password, email} = req.body;

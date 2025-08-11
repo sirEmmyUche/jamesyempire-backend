@@ -265,7 +265,7 @@ class DB_Property_Model{
     }
   }
 
-    static async checkImageExistsInDB(property_id, public_id) {
+  static async checkImageExistsInDB(property_id, public_id) {
     try {
       const query = `
         SELECT 1
@@ -292,7 +292,7 @@ class DB_Property_Model{
         `,
           [property_id, public_id]
         );
-        if (result.length === 0) {
+        if(result.length === 0) {
             return false
         }
       return {

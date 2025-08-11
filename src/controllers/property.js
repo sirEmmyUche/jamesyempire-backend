@@ -337,229 +337,119 @@ class Property{
     }
   }
 
-    // static async updateProperty(req, res, next) {
-    //     try {
-    //         const property_id = req.params.id;
-    //         const fileData = req.files?.image || []; // Ensure `req.files` is always an array
-    //         const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
-    //         // const imageFolderPath = path.join(__dirname, '../../public/uploads/images');
-    //         const invalid_inputs = []
-    //         const update = {...req.body};
-    //         // console.log('update:', update)
+  static async updateProperty(req, res, next) {
+      let uploadedPublicIds = [];
+      const folder = `${process.env.CLOUDINARY_PROPERTY_IMAGE_FOLDER}`;
+      try {
+          const property_id = req.params.id;
+          const fileData = req.files.image || []; // Expect Cloudinary results from multer
+          const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
+          const invalid_inputs = [];
 
-    //         if (!property_id) {
-    //             invalid_inputs.push({
-    //                 name:'Property_id',
-    //                 messaqge:'missing property_id'
-    //             })
-    //         }
-    //         const validateText = (field, value, maxLength = 300) => {
-    //             if (!value || value.trim() === '') {
-    //                 invalid_inputs.push({ name: field, message: 'required' });
-    //             } else if (/[\x00-\x1F\x7F]/.test(value)) {
-    //                 invalid_inputs.push({ name: field, message: 'Contains unsupported characters' });
-    //             } else if(!new RegExp(`^.{1,${maxLength}}$`).test(value)) {// (value.length >maxLength)
-    //                 invalid_inputs.push({ name: field, message: `Exceeded ${maxLength} maximum characters` });
-    //             }
-    //         };
-    //         if(update.title){
-    //             validateText('title', update.title);
-    //         }else if(update.address){
-    //             validateText('address', update.address);
-    //         }else if(update.description){
-    //             validateText('description', update.description);
-    //         }
-            
-    //         const result = await DB_Property_Model.getPropertyById({ property_id });
-    //         // console.log('result:',result)
-    //         const property = Array.isArray(result) ? result[0] : result;
-    //         // const property = await DB_Property_Model.getPropertyById({ property_id });
-    //         if (!property) {
-    //         throw new CustomError({
-    //             message: 'Property not found',
-    //             statusCode: 404,
-    //             details: {},
-    //         });
-    //         }
+          const update = { ...req.body };
+          //  console.log(update)
+          // Track uploaded images for cleanup
 
-    //         // Run validation and sanitization
-    //         // console.log(update)
-    //         const { validUpdates, invalid_fields } = Helpers.filterValidUpdates(property, update, {
-    //         parseJSON: true,
-    //         });
+          // Validate inputs
+          if (!property_id) {
+            invalid_inputs.push({
+              name: 'property_id',
+              message: 'Missing property id',
+            });
+          }
 
-    //         // console.log('validUpdates', validUpdates)
-    //         // console.log('invalid_fields', invalid_fields)
+          const validateText = (field, value, maxLength = 300) => {
+            if (!value || value.trim() === '') {
+              invalid_inputs.push({ name: field, message: 'Required' });
+            } else if (/[\x00-\x1F\x7F]/.test(value)) {
+              invalid_inputs.push({ name: field, message: 'Contains unsupported characters' });
+            } else if (!new RegExp(`^.{1,${maxLength}}$`).test(value)) {
+              invalid_inputs.push({ name: field, message: `Exceeded ${maxLength} maximum characters` });
+            }
+          };
 
-    //         if (invalid_inputs.length > 0 || invalid_fields.length>0) {
-    //         throw new CustomError({
-    //             message: 'Invalid fields in update form',
-    //             statusCode: 400,
-    //             details: {invalid_inputs},
-    //         });
-    //         }
+          if (update.title) validateText('title', update.title);
+          if (update.address) validateText('address', update.address);
+          if (update.description) validateText('description', update.description);
 
-    //         // Handle image logic
-    //         if(files){
-    //             // console.log(files)
-    //             if(property.image.length == 10){
-    //                 throw new CustomError({
-    //                     message: `Image limit reached. You can't upload more than 10 images per property`,
-    //                     statusCode: 400,
-    //                     details: {},
-    //                 })
-    //             }else if((property.image.length + files.length)>10){
-    //                 // console.log((property.image.length + files.length))
-    //                 throw new CustomError({
-    //                     message: `Image limit reached. You can't upload more than 10 images per property`,
-    //                     statusCode: 400,
-    //                     details: {},
-    //                 })
-    //             }
-    //             const image = files.map(file => file.filename);
-    //             validUpdates.image = image;
-    //         }
-    //          validUpdates.updated_at = new Date();
+          // Check if property exists
+          const property = await DB_Property_Model.getPropertyById({ property_id });
+          if (!property) {
+            throw new CustomError({
+              message: 'Property not found',
+              statusCode: 404,
+              details: {},
+            });
+          }
 
-    //         // Update DB
-    //         // console.log(validUpdates)
-    //         const updated = await DB_Property_Model.updateProperty({property_id, updates: validUpdates,});
-
-    //         res.status(200).json({
-    //         success: true,
-    //         message: 'Property updated successfully',
-    //         // data: updated,
-    //         });
-    //     } catch (error) {
-    //         const fileData = req.files?.image || []; // Ensure `req.files` is always an array
-    //         const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
-    //         if(files){
-    //              try {
-    //                 await Promise.all(files.map(async(file)=>{
-    //                     await fsp.unlink(file.path);
-    //                 }))
-    //              } catch (err) {
-    //                     console.error('Failed to delete file:', err.message);
-    //                 }
-    //             }
-
-    //         next(error);
-    //     }  
-    // }
-
-     static async updateProperty(req, res, next) {
-         let uploadedPublicIds = [];
-        const folder = `${process.env.CLOUDINARY_PROPERTY_IMAGE_FOLDER}`;
-    try {
-      const property_id = req.params.id;
-      const fileData = req.files.image || []; // Expect Cloudinary results from multer
-      const files = Array.isArray(fileData) && fileData.length > 0 ? fileData : null;
-      const invalid_inputs = [];
-
-      const update = { ...req.body };
-    //   console.log(update)
-      // Track uploaded images for cleanup
-
-      // Validate inputs
-      if (!property_id) {
-        invalid_inputs.push({
-          name: 'property_id',
-          message: 'Missing property id',
-        });
-      }
-
-      const validateText = (field, value, maxLength = 300) => {
-        if (!value || value.trim() === '') {
-          invalid_inputs.push({ name: field, message: 'Required' });
-        } else if (/[\x00-\x1F\x7F]/.test(value)) {
-          invalid_inputs.push({ name: field, message: 'Contains unsupported characters' });
-        } else if (!new RegExp(`^.{1,${maxLength}}$`).test(value)) {
-          invalid_inputs.push({ name: field, message: `Exceeded ${maxLength} maximum characters` });
-        }
-      };
-
-      if (update.title) validateText('title', update.title);
-      if (update.address) validateText('address', update.address);
-      if (update.description) validateText('description', update.description);
-
-      // Check if property exists
-      const property = await DB_Property_Model.getPropertyById({ property_id });
-      if (!property) {
-        throw new CustomError({
-          message: 'Property not found',
-          statusCode: 404,
-          details: {},
-        });
-      }
-
-      // Filter valid updates
-      if(update.image) delete update.image // this removes the image as it's no longer on the databae property table
-      const { validUpdates, invalid_fields } = Helpers.filterValidUpdates(property, update, {
-        parseJSON: true,
-      });
-
-      if (invalid_inputs.length > 0 || invalid_fields.length > 0) {
-        throw new CustomError({
-          message: 'Invalid fields in update form',
-          statusCode: 400,
-          details: { invalid_inputs, invalid_fields },
-        });
-      }
-
-      // Handle image uploads
-      let cloudinaryResults = [];
-      if (files) {
-        const imageCount = await DB_Property_Model.getImageCount({ property_id });
-        if (imageCount >= 10) {
-          throw new CustomError({
-            message: "Image limit reached. You can't upload more than 10 images per property",
-            statusCode: 400,
-            details: {},
+          // Filter valid updates
+          if(update.image) delete update.image // this removes the image as it's no longer on the databae property table
+          const { validUpdates, invalid_fields } = Helpers.filterValidUpdates(property, update, {
+            parseJSON: true,
           });
-        }
-        if (imageCount + files.length > 10) {
-          throw new CustomError({
-            message: `Image limit reached. You can only upload ${
-              10 - imageCount
-            } more image(s)`,
-            statusCode: 400,
-            details: {},
-          });
-        }
+
+          if (invalid_inputs.length > 0 || invalid_fields.length > 0) {
+            throw new CustomError({
+              message: 'Invalid fields in update form',
+              statusCode: 400,
+              details: { invalid_inputs, invalid_fields },
+            });
+          }
+
+          // Handle image uploads
+          let cloudinaryResults = [];
+          if (files) {
+            const imageCount = await DB_Property_Model.getImageCount({ property_id });
+            if (imageCount >= 10) {
+              throw new CustomError({
+                message: "Image limit reached. You can't upload more than 10 images per property",
+                statusCode: 400,
+                details: {},
+              });
+            }
+            if (imageCount + files.length > 10) {
+              throw new CustomError({
+                message: `Image limit reached. You can only upload ${
+                  10 - imageCount
+                } more image(s)`,
+                statusCode: 400,
+                details: {},
+              });
+            }
 
         
-        const uploadToCloudinary = await Promise.all(
-            files.map((file) => CloudinaryHelper.uploadToCloudinary(file, folder))
-            );
+            const uploadToCloudinary = await Promise.all(
+                files.map((file) => CloudinaryHelper.uploadToCloudinary(file, folder))
+                );
 
-        cloudinaryResults = uploadToCloudinary?.map((file, index) => ({
-          public_id: file.public_id,
-          secure_url: file.secure_url,
-          format: file.format,
-          version: file.version,
-        }));
+            cloudinaryResults = uploadToCloudinary?.map((file, index) => ({
+              public_id: file.public_id,
+              secure_url: file.secure_url,
+              format: file.format,
+              version: file.version,
+            }));
 
-        uploadedPublicIds = cloudinaryResults.map((result) => result.public_id);
+            uploadedPublicIds = cloudinaryResults.map((result) => result.public_id);
 
-      }
+          }
 
-      // Update property and images
-      validUpdates.updated_at = new Date();
-      
-      const updated = await DB_Property_Model.updateProperty({
-        property_id,
-        updates: validUpdates,
-        cloudinaryResults,
-      });
+        // Update property and images
+          validUpdates.updated_at = new Date();
+          
+          const updated = await DB_Property_Model.updateProperty({
+            property_id,
+            updates: validUpdates,
+            cloudinaryResults,
+          });
 
-    // console.log('this is to be added to db',validUpdates)
+          // console.log('this is to be added to db',validUpdates)
 
-      res.status(200).json({
-        success: true,
-        message: 'Property updated successfully',
-      });
+        res.status(200).json({
+          success: true,
+          message: 'Property updated successfully',
+        });
 
-    } catch (error) {
+      } catch (error) {
       // Clean up uploaded Cloudinary images on failure
         if (uploadedPublicIds.length > 0) {
             try {
@@ -569,8 +459,7 @@ class Property{
             }
         }
         next(error);
-
-    }
+      }
   }
 
 
@@ -629,7 +518,7 @@ class Property{
        if (!existsInCloudinary && !existsInDB) {
          throw new CustomError({
           message: 'Image does not exist or may have been moved to another location',
-          statusCode: 400,
+          statusCode: 404,
           details: {},
         });
       }

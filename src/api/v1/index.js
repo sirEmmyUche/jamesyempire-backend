@@ -31,6 +31,12 @@ router.post('/update-account',
     Account.updateAccount,
 )
 
+router.delete('/account/delete-profile-pics',
+    Auth.verifyToken,
+    Auth.authentication,
+    Account.removeProfilePics
+)
+
 router.post('/account/change-password',
     Auth.verifyToken,
     Auth.authentication,

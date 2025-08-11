@@ -21,9 +21,9 @@ class Chats {
             const chatlist = await Promise.all(result.map(async (item) => {
             return {
                 ...item,
-                image: `${baseUrl}/${item.image}`,
-                agent_profile_img:item.agent_profile_img !== ''?`${profilePicUrl}/${item.agent_profile_img}`:item.agent_profile_img,
-                user_profile_img:item.user_profile_img !== ''?`${profilePicUrl}/${item.user_profile_img}`:item.user_profile_img,
+                image: item.image,
+                agent_profile_img:item.agent_profile_img,
+                user_profile_img:item.user_profile_img,
                 // Await the asynchronous encrypt function
                 chatroom_id: await Utilities.encrypt(item.chatroom_id) // Added .toString() as well
             };
@@ -81,9 +81,9 @@ class Chats {
             return {
                 messages,
                 ...item,
-                image: `${baseUrl}/${item.image}`,
-                agent_profile_img:item.agent_profile_img !== ''?`${profilePicUrl}/${item.agent_profile_img}`:item.agent_profile_img,
-                user_profile_img:item.user_profile_img !== ''?`${profilePicUrl}/${item.user_profile_img}`:item.user_profile_img,
+                image: item.image,
+                agent_profile_img:item.agent_profile_img,
+                user_profile_img:item.user_profile_img,
                 // Await the asynchronous encrypt function
                 chatroom_id: await Utilities.encrypt(item.chatroom_id) // Added .toString() as well
             };

@@ -78,6 +78,42 @@ const PG_DB = require('../database/rdbms/postgres');
         }
     }
 
+    static async checkImageExistsInDB(account_id, public_id) {
+        try {
+        const query = `
+            SELECT 1
+            FROM accounts
+            WHERE account_id = $1 AND profile_img = $2 LIMIT 1;
+        `;
+        const result = await PG_DB.query(query, [account_id, public_id]);
+        if(result.length < 1) {
+                return false;
+            }
+            return true;
+        } catch (error) {
+        throw new Error(`Failed to check image existence in database: ${error.message}`);
+        }
+    }
+
+    static async removeProfilePics(account_id){
+        try{
+            const query = `
+            UPDATE accounts
+            SET profile_img = NULL,
+            profile_img_metadata = '{}'
+            WHERE account_id = $1;
+            `
+            const result = await PG_DB.query(query, [account_id,]);
+            // console.log(result)
+            if(result.length>0){
+                return result
+            }
+            return false
+        }catch(error){
+            throw error
+        }
+    }
+
     static async getAccountByEmail({email}){
         try{
             const result = await PG_DB.query(
@@ -263,102 +299,8 @@ const PG_DB = require('../database/rdbms/postgres');
         } catch (error) {
             throw error;
         }
-}
-
-//     static async updateAccount({ account_id, updates, profileImage }) {
-//   try {
-//     const result = await PG_DB.transaction(
-//       // Step 1: Update main account fields (+ profile image if provided) & updated_at
-//       () => {
-//         // Ensure updated_at is never set twice
-//         const filteredUpdates = Object.fromEntries(
-//           Object.entries(updates).filter(([key]) => key !== 'updated_at')
-//         );
-
-//         const queryParams = [];
-//         const setClauses = [];
-
-//         Object.keys(filteredUpdates).forEach((key, index) => {
-//           setClauses.push(`"${key}" = $${index + 1}`);
-//           queryParams.push(filteredUpdates[key]);
-//         });
-
-//         if (profileImage) {
-//           const { public_id, metadata } = profileImage;
-//           setClauses.push(`profile_img = $${queryParams.length + 1}`);
-//           setClauses.push(`profile_img_metadata = $${queryParams.length + 2}`);
-//           queryParams.push(public_id, metadata);
-//         }
-
-//         // Always set updated_at exactly once
-//         setClauses.push(`updated_at = CURRENT_TIMESTAMP`);
-
-//         const setClause = setClauses.join(', ');
-
-//         return {
-//           query: `
-//             UPDATE accounts
-//             SET ${setClause}
-//             WHERE account_id = $${queryParams.length + 1}
-//             RETURNING account_id, email, firstname, lastname, phone, role, profile_img, profile_img_metadata;
-//           `,
-//           values: [...queryParams, account_id],
-//         };
-//       },
-
-//       // Step 2: Reset verification flags only if those fields actually changed
-//       (prev) => {
-//         if (!prev?.length) {
-//           return { query: 'SELECT 1', values: [] };
-//         }
-
-//         const current = prev[0];
-//         const resetFields = {};
-//         const values = [];
-
-//         if (updates.phone !== undefined && updates.phone !== current.phone) {
-//           resetFields.phone = false;
-//         }
-//         if (updates.email !== undefined && updates.email !== current.email) {
-//           resetFields.email = false;
-//         }
-
-//         if (Object.keys(resetFields).length > 0) {
-//           const setClauses = [];
-//           let idx = 1;
-//           for (const [field, val] of Object.entries(resetFields)) {
-//             setClauses.push(`${field} = $${idx++}`);
-//             values.push(val);
-//           }
-//           values.push(account_id);
-
-//           return {
-//             query: `
-//               UPDATE account_verification_status
-//               SET ${setClauses.join(', ')}
-//               WHERE account_id = $${values.length}
-//               RETURNING account_id;
-//             `,
-//             values,
-//           };
-//         }
-
-//         return { query: 'SELECT 1', values: [] };
-//       }
-//     );
-
-//     if (result) {
-//       const updatedFields = {};
-//       result.flat().forEach((row) => Object.assign(updatedFields, row));
-//       return { success: true, ...updatedFields };
-//     }
-
-//     return false;
-//   } catch (error) {
-//     throw error;
-//   }
-// }
-
-
  }
+
+
+}
  module.exports = DB_Account_Model
