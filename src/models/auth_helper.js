@@ -15,6 +15,11 @@ class AuthHelperModel {
                 ownerColumn = 'account_id';
                 resource_id = 'blog_id';
                 break;
+            case 'ads_response':
+                table = 'ads_response';
+                ownerColumn = 'account_id';
+                resource_id = 'ads_response_id';
+                break;
             case 'comment':
                 table = 'comments';
                 ownerColumn = 'account_id';

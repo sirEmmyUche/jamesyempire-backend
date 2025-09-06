@@ -1,7 +1,83 @@
 const PG_DB = require('../database/rdbms/postgres');
+const {CustomError} = require('../libraries/custom_error')
 
 
 class DB_Property_Model{
+
+   static async adsResponseExist({id}){
+        try{
+            const result = await PG_DB.query(
+                `SELECT 1 FROM ads_response WHERE ads_response_id = $1 LIMIT 1`,
+                [id]
+            );
+             if(result.length < 1) {
+                return false;
+            }
+            return true;
+        }catch(err){
+            // console.error(err)
+            throw err
+        }
+    }
+
+  static async getAllAdsResponse({limit, offset}){
+    try{
+      const result = await PG_DB.query(
+        `SELECT * FROM ads_response
+         ORDER BY id DESC
+        LIMIT $1 OFFSET $2;`,
+        [limit, offset]
+      )
+      const countResult = await PG_DB.query(`SELECT COUNT(*) AS total FROM ads_response`);
+      const total = parseInt(countResult[0]?.total) || 0;
+
+      if (result.length > 0) {
+        return { result, total };
+      }
+      return { result: [], total: 0 };
+    }catch(error){
+      throw error
+    }
+  }
+
+    static async SaveAdsResponse({data}){
+        try{
+            const result = await PG_DB.query(
+                `INSERT INTO ads_response (ads_response_id, phone, email, message, location,created_at,name)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING *;`,
+                [data.ads_response_id, data.phone, data.email, data.message, data.location, data.created_at, data.name]
+            );
+            if (result.length > 0) {
+                return result[0];
+            }
+            return false;
+        }catch(error){
+          console.error(error);
+            throw new CustomError({
+              message:'Unable to process your request at the moment.',
+              statusCode: 500,
+              details:{}
+            })
+        }
+    }
+
+     static async deleteAdsResponseById(ads_response_id){
+        try{
+            const result = await PG_DB.query(
+            `DELETE FROM ads_response
+            WHERE ads_response_id = $1
+            RETURNING *;`,
+            [ads_response_id])
+        if (result.length>0){
+            return result
+        }
+        return false
+        }catch(error){
+            throw error
+        }
+    }
+
     static async getMyProperties({ account_id, limit, offset }) {
     try {
       const query = `

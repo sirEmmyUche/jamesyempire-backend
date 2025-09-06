@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const {CustomError} = require('../libraries/custom_error');
 const DB_Account_Model = require('../models/account');
 const AuthHelperModel = require('../models/auth_helper')
+const permission = require('../config/permission')
 
 class Auth {
     // verify token for websocket live chat 
@@ -151,14 +152,14 @@ class Auth {
         return async (req, res, next) => {
             try {
 
-            const user = req.user;
+            const user = req.user; 
             const userRole = user?.role;
 
-            const permission = {
-                user: ['read:any'],
-                agent: ['read:any', 'create:own', 'update:own', 'delete:own', 'block:own'],
-                admin: ['read:any', 'create:own', 'update:own', 'delete:any', 'block:any'],
-            };
+            // const permission = {
+            //     user: ['read:any'],
+            //     agent: ['read:any', 'create:own', 'update:own', 'delete:own', 'block:own'],
+            //     admin: ['read:any', 'read:admin-only','create:own', 'update:own', 'delete:any', 'block:any'],
+            // };
 
             const allowedRoles = Array.isArray(roles) ? roles : [roles];
             const actionList = Array.isArray(actions) ? actions : [actions];

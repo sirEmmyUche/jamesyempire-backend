@@ -8,9 +8,161 @@ const DB_Property_Model = require('../models/property')
 const Helpers = require('../helpers/helpers')
 const CloudinaryHelper = require('../helpers/cloudinary')
 const path = require('path');
+const validator = require('validator');
 // const DB_Account_Model = require('../models/account');
 
 class Property{
+    static async propertyAdsResponse(req,res,next){
+      try{
+        const invalid_inputs = [];
+        const {name, phone, email, message, location} = req.body;
+        const ads_response_id = uuidv4();
+
+        // Basic presence checks
+        if (!name) invalid_inputs.push('name');
+        if (!phone) invalid_inputs.push('phone');
+        if (!email) invalid_inputs.push('email');
+        if (!message) invalid_inputs.push('message');
+        if (!location) invalid_inputs.push('location');
+
+        if(invalid_inputs.length > 0){
+          throw new CustomError({
+            message: 'All fields are required',
+            statusCode: 400,
+            details: { invalid_inputs }
+          });
+        }
+
+        if (!validator.isEmail(email)) {
+             throw new CustomError({
+            message: 'Invalid email address',
+            statusCode: 400,
+            details: {}
+          });
+        }
+
+        if(!Utilities.validatePhoneNumber(phone)){
+           throw new CustomError({
+            message: 'Invalid phone number',
+            statusCode: 400,
+            details: {}
+          });
+        }
+
+        const validationRules = {
+          message: { min: 1, max:500},
+          name: { min: 2, max: 150 },
+          // phone: { min: 10, max: 15 },
+          email: { min: 5, max: 100 },
+          location: { min: 2, max: 100 },
+        };
+
+        const dataToValidate = {name,email,message,location}
+         const sanitizedData = await Utilities.sanitizeAndValidateInput(dataToValidate, validationRules);
+         const created_at = new Date()
+         const data = { ads_response_id, phone, created_at, ...sanitizedData };
+
+         const saveToDB = await DB_Property_Model.SaveAdsResponse({data}) 
+
+         if(!saveToDB){
+           throw new CustomError({
+             message: 'Unable to save your response at the moment',
+             statusCode: 500,
+             details: {}
+           });
+         }
+          //send email notification to admin
+          // Fire-and-forget email notification
+          Helpers.sendEmailNotficationForNewAdsResponse(
+            process.env.OFFICIAL_MAIL,
+            // 'uche4flex@yahoo.com',
+            'Jamesy'
+          ).catch((error) => {
+            console.error('Email notification failed:', error);
+          });
+
+         res.status(201).json({
+           success: true,
+           message: 'Message successfully sent.',
+         });
+
+      }catch(error){
+        next(error)
+      }
+    }
+
+    static async getAllAdsResponse(req, res, next) {
+      try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = 10; //set to 10
+        const offset = Math.max((page - 1) * limit, 0);
+
+        const { result, total } = await DB_Property_Model.getAllAdsResponse({ limit, offset });
+
+        if (result.length === 0) {
+          throw new CustomError({
+            message: 'No ads response found.',
+            statusCode: 404,
+            details: {},
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: 'Ads response successfully fetched.',
+          ads: result,
+          hasMore: offset + result.length < total,
+          total,
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+
+    static async deleteAdsResponse(req, res, next) {
+      try {
+        const validate = []
+        const { id } = req.params;
+
+        if(!id) validate.push('id')
+
+        if(validate.length > 0){
+          throw new CustomError({
+            message: 'missing Ads response identification',
+            statusCode: 400,
+            details: { invalid_inputs: validate }
+          });
+        }
+
+        const adsResponseExists = await DB_Property_Model.adsResponseExist({ id });
+
+        if (!adsResponseExists) {
+          throw new CustomError({
+            message: 'Ads response not found.',
+            statusCode: 404,
+            details: {},
+          });
+        }
+
+        const deleted = await DB_Property_Model.deleteAdsResponseById(id);
+
+        if (!deleted) {
+          throw new CustomError({
+            message: 'Unable to delete Ads response.',
+            statusCode: 404,
+            details: {},
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: 'Ads response successfully deleted.',
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+
     static async getMyProperties(req, res, next) {
     try {
       const account_id = req.user.account_id;
@@ -46,7 +198,7 @@ class Property{
     }
   }
 
-    static async searchProperties(req, res, next) {
+ static async searchProperties(req, res, next) {
     try {
       const {
         title,

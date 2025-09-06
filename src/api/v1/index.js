@@ -58,6 +58,27 @@ router.get('/chat-request',
 )
 
 //properties
+
+//submit ads response for property
+router.post('/ad-response',
+    Property.propertyAdsResponse
+)
+
+router.get('/all-ads-response',
+    Auth.verifyToken,
+    Auth.authentication,
+    Auth.authorization(['admin'], ['read:admin-only'], 'ads_response'),
+    Property.getAllAdsResponse
+)
+
+router.delete('/ads-response/:id',
+    Auth.verifyToken,
+    Auth.authentication,
+    Auth.authorization(['admin'], ['delete:any'], 'ads_response'),
+    Property.deleteAdsResponse
+)
+
+//upload property
 router.post('/upload-property',
     Auth.verifyToken,
     Auth.authentication,

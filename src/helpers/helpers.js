@@ -44,6 +44,26 @@ class Helpers {
       return false
     }
   }
+
+  // send email notif for new ads response
+  static async sendEmailNotficationForNewAdsResponse(recipientMail, recipientName){
+    try{
+       const mailOption = {
+      from:`${process.env.OFFICIAL_MAIL}`,
+      to: recipientMail,
+      subject:`New Ads Response`,
+      html:`<h3>Hello ${recipientName},</h3> 
+      <p>A client has responded to your ads on jamseyempire.</p>
+      <p>Regards</p> `,
+  }
+    const result = await nodemailerTransporter.sendMail(mailOption);
+    return result
+    }catch(error){
+      console.error('error sending email notif for chat request:', error)
+      return false
+    }
+  }
+
     /**
  * Filters and validates update fields against existing DB fields.
  * @param {Object} existingData - The data object fetched from DB.

@@ -9,7 +9,7 @@ const WebSocketService = require('./src/services/websocket')
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.get('/health-check', (req, res) => {
+app.get('/health', (req, res) => {
     res.status(200);
     res.send('OK');
 });
@@ -30,10 +30,6 @@ app.use('/v1', api_route_v1);
 // start listening to socket on provided port
 const server = http.createServer(app);
 const wsService = WebSocketService.initialize(server);
-
-// app.listen(PORT,()=>{
-//     console.log(`Server is listening on port: ${PORT}`)
-// });
 
 server.listen(PORT,()=>{
     console.log(`Server is listening on port: ${PORT}`)

@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken')
 const NodeCache = require('node-cache')
 // const fs = require('fs/promises');
 const {isValidPhoneNumber} = require('libphonenumber-js')
+const validator = require('validator')
+const {CustomError} = require('../libraries/custom_error')
 
 const algorithm = 'aes-256-cbc';
 const secretKey = `${process.env.CRYPTO_SECRETE_KEY}`;
@@ -51,7 +53,79 @@ class Utilities {
       return false;
     }
 
-    static async setChatMessage(uniqueKey, newValue){
+    /**
+      * Sanitizing inputs fields. 
+      * data = { key: value } //object
+      * validationRules = { key: { min: 2, max: 100 } } //object
+      */
+ static async sanitizeAndValidateInput(data = {}, validationRules = {}) {
+  try{
+    const sanitizedData = {};
+  const fieldErrors = [];
+
+  // Define forbidden patterns to catch script tags, HTML, JS protocols, etc.
+  const forbiddenPatterns = [
+    /<script.*?>.*?<\/script>/gi,  // script tags
+    /<\/?[a-z][\s\S]*?>/gi,   // any HTML tag
+    /javascript:/gi, // JS protocol
+    /on\w+=["'].*?["']/gi // inline event handlers like onclick
+  ];
+
+  Object.keys(data).forEach((key) => {
+    const value = data[key];
+
+    if (typeof value !== 'string') {
+      fieldErrors.push({
+        field: key,
+        message: `Field '${key}' must be a string.`
+      });
+      return;
+    }
+
+    const trimmedValue = value.trim();
+    const escapedValue = validator.escape(trimmedValue);
+    const rule = validationRules[key];
+
+    // Check for forbidden patterns
+    forbiddenPatterns.forEach((pattern) => {
+      if (pattern.test(trimmedValue)) {
+        fieldErrors.push({
+          field: key,
+          message: `Field '${key}' contains forbidden characters.`
+        });
+      }
+    });
+
+    // Check length constraints
+    if (rule) {
+      const isValidLength = validator.isLength(escapedValue, rule);
+      if (!isValidLength) {
+        fieldErrors.push({
+          field: key,
+          message: `Field '${key}' must be between ${rule.min} and ${rule.max} characters.`
+        });
+      } else {
+        sanitizedData[key] = escapedValue;
+      }
+    } else {
+      sanitizedData[key] = escapedValue;
+    }
+  });
+
+  if (fieldErrors.length > 0) {
+    throw new CustomError({
+      message: 'Validation failed',
+      statusCode: 400,
+      details: { fields: fieldErrors }
+    });
+  }
+
+  return sanitizedData;
+  }catch(error){
+    throw error
+  }
+}
+  static async setChatMessage(uniqueKey, newValue){
       try{
         const iskeyExist = cache.has(`${uniqueKey}`);
       if(iskeyExist){
