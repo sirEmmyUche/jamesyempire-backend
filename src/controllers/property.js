@@ -293,37 +293,35 @@ class Property{
         }
 
         // Validate fields
-        const validateText = (field, value, maxLength = 300) => {
-            if (!value || value.trim() === '') {
-            invalid_inputs.push({ name: field, message: 'Required' });
-            } else if (/[\x00-\x1F\x7F]/.test(value)) {
-            invalid_inputs.push({ name: field, message: 'Contains unsupported characters' });
-            } else if (!new RegExp(`^.{1,${maxLength}}$`).test(value)) {
-            invalid_inputs.push({ name: field, message: `Exceeded ${maxLength} maximum characters` });
-            }
-        };
-
-        validateText('title', title);
-        validateText('address', address);
-        validateText('description', description);
-
-        if (!country || !state) {
-            invalid_inputs.push({ name: 'country_state', message: 'Country and State are required' });
-        }
-
-        ['available_for', 'category', 'price', 'property_features', 'status'].forEach((field) => {
+        ['country', 'state', 'address', 
+          'description', 'title', 'available_for', 'category', 
+          'price', 'property_features', 'status'].forEach((field) => {
             if (!req.body[field]) {
-            invalid_inputs.push({ name: field, message: 'Required' });
+            invalid_inputs.push({ name: field, message: `${field} is required` });
             }
         });
 
         if (invalid_inputs.length > 0) {
             throw new CustomError({
-            message: 'Invalid or missing inputs',
+            message: 'missing a required fields',
             statusCode: 400,
             details: { fields: invalid_inputs },
             });
         }
+
+        // Additional validations to sanitise inputs
+        const validationRules = {
+            title: { min: 2, max:300},
+            address: { min: 5, max:300},
+            country: { min: 2, max:100},
+            state: { min: 2, max:100},
+          description: { min: 10, max:1000},
+          available_for: { min:2, max:50},
+          category: { min: 4, max:50}, 
+        }
+
+        const dataToValidate = {title,address,country,state,description,available_for,category}
+        await Utilities.sanitizeAndValidateInput(dataToValidate, validationRules);
 
         // Upload images to Cloudinary
         if (files) {
@@ -351,7 +349,7 @@ class Property{
         };
 
         // Insert property and images transactionally
-        const { property, images } = await DB_Property_Model.uploadPropertyWithImages(resource, cloudinaryResults);
+         const { property, images } = await DB_Property_Model.uploadPropertyWithImages(resource, cloudinaryResults);
 
         // Prepare response
         res.status(201).json({
@@ -509,20 +507,28 @@ class Property{
               message: 'Missing property id',
             });
           }
+          
+          // Validate fields if they are present in the update
+          if (update.title) {
+            const validationRules = { title: { min: 2, max:300} };
+            const dataToValidate = {title: update.title}
+            await Utilities.sanitizeAndValidateInput(dataToValidate, validationRules);
+            // validateText('title', update.title)
+          }
 
-          const validateText = (field, value, maxLength = 300) => {
-            if (!value || value.trim() === '') {
-              invalid_inputs.push({ name: field, message: 'Required' });
-            } else if (/[\x00-\x1F\x7F]/.test(value)) {
-              invalid_inputs.push({ name: field, message: 'Contains unsupported characters' });
-            } else if (!new RegExp(`^.{1,${maxLength}}$`).test(value)) {
-              invalid_inputs.push({ name: field, message: `Exceeded ${maxLength} maximum characters` });
-            }
-          };
+          if (update.address) {
+            const validationRules = { address: { min: 5, max: 300 } };
+            const dataToValidate = { address: update.address };
+            await Utilities.sanitizeAndValidateInput(dataToValidate, validationRules);
+            // validateText('address', update.address)
+          }
 
-          if (update.title) validateText('title', update.title);
-          if (update.address) validateText('address', update.address);
-          if (update.description) validateText('description', update.description);
+          if (update.description) {
+            const validationRules = { description: { min: 10, max: 1000 } };
+            const dataToValidate = { description: update.description };
+            await Utilities.sanitizeAndValidateInput(dataToValidate, validationRules);
+            // validateText('description', update.description)
+          }
 
           // Check if property exists
           const property = await DB_Property_Model.getPropertyById({ property_id });

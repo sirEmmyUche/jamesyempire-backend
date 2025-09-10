@@ -91,7 +91,7 @@ class Utilities {
       if (pattern.test(trimmedValue)) {
         fieldErrors.push({
           field: key,
-          message: `Field '${key}' contains forbidden characters.`
+          message: `${key} contains forbidden characters.`
         });
       }
     });
@@ -102,7 +102,7 @@ class Utilities {
       if (!isValidLength) {
         fieldErrors.push({
           field: key,
-          message: `Field '${key}' must be between ${rule.min} and ${rule.max} characters.`
+          message: `${key} must be between ${rule.min} and ${rule.max} characters.`
         });
       } else {
         sanitizedData[key] = escapedValue;
