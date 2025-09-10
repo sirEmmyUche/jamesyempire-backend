@@ -315,7 +315,7 @@ class Property{
             address: { min: 5, max:300},
             country: { min: 2, max:100},
             state: { min: 2, max:100},
-          description: { min: 10, max:1000},
+          description: { min: 10, max:5000},
           available_for: { min:2, max:50},
           category: { min: 4, max:50}, 
         }
@@ -507,7 +507,7 @@ class Property{
               message: 'Missing property id',
             });
           }
-          
+
           // Validate fields if they are present in the update
           if (update.title) {
             const validationRules = { title: { min: 2, max:300} };
@@ -524,7 +524,7 @@ class Property{
           }
 
           if (update.description) {
-            const validationRules = { description: { min: 10, max: 1000 } };
+            const validationRules = { description: { min: 10, max: 5000 } };
             const dataToValidate = { description: update.description };
             await Utilities.sanitizeAndValidateInput(dataToValidate, validationRules);
             // validateText('description', update.description)
